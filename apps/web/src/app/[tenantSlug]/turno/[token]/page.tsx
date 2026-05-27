@@ -15,6 +15,7 @@ export default function PublicAppointmentPage({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     params.then((value) => setToken(value.token));
@@ -38,11 +39,15 @@ export default function PublicAppointmentPage({
   }, [token]);
 
   async function cancelAppointment() {
+    setCancelling(true);
+    setError("");
+
     const result = await fetchJson<{ appointment: any }>(`/api/appointments/public/${token}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "cancel" }),
     });
+    setCancelling(false);
 
     if (!result.ok) {
       setError(result.error);
@@ -93,8 +98,8 @@ export default function PublicAppointmentPage({
         </div>
         {message && <p className="mt-3 text-green-700">{message}</p>}
         {appointment.status !== "cancelled" && (
-          <Button className="mt-4" variant="danger" onClick={cancelAppointment}>
-            Cancelar turno
+          <Button className="mt-4" variant="danger" onClick={cancelAppointment} disabled={cancelling}>
+            {cancelling ? "Cancelando..." : "Cancelar turno"}
           </Button>
         )}
       </Card>

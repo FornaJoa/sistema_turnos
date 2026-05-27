@@ -17,9 +17,25 @@ export function PanelNav({
   const [role, setRole] = useState<MembershipRole | null>(null);
 
   useEffect(() => {
+    const cacheKey = `panel-role:${tenantSlug}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        setRole(JSON.parse(cached) as MembershipRole);
+      } catch {
+        sessionStorage.removeItem(cacheKey);
+      }
+    }
+
     fetchJson<{ membership?: { role: MembershipRole } }>(`/api/tenants/${tenantSlug}/me`).then(
       (result) => {
-        setRole(result.ok ? result.data.membership?.role ?? null : null);
+        const nextRole = result.ok ? result.data.membership?.role ?? null : null;
+        setRole(nextRole);
+        if (nextRole) {
+          sessionStorage.setItem(cacheKey, JSON.stringify(nextRole));
+        } else {
+          sessionStorage.removeItem(cacheKey);
+        }
       }
     );
   }, [tenantSlug]);

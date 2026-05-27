@@ -15,6 +15,7 @@ export default function BarberPanelPage({
   const [tenantSlug, setTenantSlug] = useState("");
   const [profile, setProfile] = useState<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -27,6 +28,9 @@ export default function BarberPanelPage({
       return;
     }
 
+    setLoading(true);
+    setError("");
+
     const meResult = await fetchJson<{
       staffProfile: { id: string; name: string } | null;
       tenant: { timezone: string };
@@ -35,6 +39,8 @@ export default function BarberPanelPage({
     if (!meResult.ok) {
       setError(meResult.error);
       setProfile(null);
+      setAppointments([]);
+      setLoading(false);
       return;
     }
 
@@ -43,6 +49,8 @@ export default function BarberPanelPage({
 
     if (!meData.staffProfile) {
       setError("Tu usuario no está vinculado a un perfil de profesional. Pedile al admin que te asigne.");
+      setAppointments([]);
+      setLoading(false);
       return;
     }
 
@@ -50,6 +58,10 @@ export default function BarberPanelPage({
       `/api/tenants/${tenantSlug}/staff/${meData.staffProfile.id}/appointments`
     );
     setAppointments(apptResult.ok ? apptResult.data.appointments ?? [] : []);
+    if (!apptResult.ok) {
+      setError(apptResult.error);
+    }
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -58,15 +70,16 @@ export default function BarberPanelPage({
 
   async function updateStatus(appointmentId: string, status: string) {
     setMessage("");
-    const response = await fetch(`/api/tenants/${tenantSlug}/appointments`, {
+    setError("");
+
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/appointments`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ appointmentId, status }),
     });
 
-    if (!response.ok) {
-      const data = await response.json();
-      setError(data.error ?? "No se pudo actualizar");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
@@ -74,8 +87,12 @@ export default function BarberPanelPage({
     loadData();
   }
 
-  if (!tenantSlug) {
-    return <main className="p-6">Cargando...</main>;
+  if (!tenantSlug || loading) {
+    return (
+      <main className="mx-auto max-w-6xl p-6">
+        <p className="text-zinc-500">Cargando agenda...</p>
+      </main>
+    );
   }
 
   if (error && !profile?.staffProfile) {

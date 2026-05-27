@@ -21,6 +21,17 @@ interface Slot {
   available: boolean;
 }
 
+function dedupeAvailableSlots(slots: Slot[]) {
+  const seen = new Set<string>();
+  return slots.filter((slot) => {
+    if (!slot.available || seen.has(slot.startAt)) {
+      return false;
+    }
+    seen.add(slot.startAt);
+    return true;
+  });
+}
+
 export default function ReceptionPage({
   params,
 }: {
@@ -66,17 +77,28 @@ export default function ReceptionPage({
 
     const queryDate = date || getTodayDateString(timezone);
     setLoading(true);
+    setWalkInSlotsLoading(Boolean(walkIn.staffId && walkIn.serviceId));
+
+    const params = new URLSearchParams({ date: queryDate });
+    if (walkIn.staffId && walkIn.serviceId) {
+      params.set("staffId", walkIn.staffId);
+      params.set("serviceId", walkIn.serviceId);
+    }
+
     const result = await fetchJson<{
       catalog: any;
       summary: typeof summary;
       appointments: any[];
       date?: string;
-    }>(`/api/tenants/${tenantSlug}/reception?date=${queryDate}`);
+      walkInSlots?: Slot[] | null;
+    }>(`/api/tenants/${tenantSlug}/reception?${params.toString()}`);
 
     if (!result.ok) {
       setError(result.error);
       setCatalog(null);
+      setWalkInSlots([]);
       setLoading(false);
+      setWalkInSlotsLoading(false);
       return;
     }
 
@@ -87,6 +109,7 @@ export default function ReceptionPage({
     setDate(data.date ?? queryDate);
     setSummary(data.summary ?? []);
     setAppointments(data.appointments ?? []);
+    setWalkInSlots(dedupeAvailableSlots(data.walkInSlots ?? []));
     setError("");
     setWalkIn((prev) => ({
       ...prev,
@@ -94,57 +117,12 @@ export default function ReceptionPage({
       serviceId: prev.serviceId || data.catalog?.services?.[0]?.id || "",
     }));
     setLoading(false);
-  }, [tenantSlug, date, timezone]);
-
-  const loadWalkInSlots = useCallback(async () => {
-    if (!tenantSlug || !walkIn.staffId || !walkIn.serviceId) {
-      return;
-    }
-    const queryDate = date || getTodayDateString(timezone);
-    setWalkInSlotsLoading(true);
-    try {
-      const query = new URLSearchParams({
-        date: queryDate,
-        staffId: walkIn.staffId,
-        serviceId: walkIn.serviceId,
-      });
-      const result = await fetchJson<{ slots: Slot[] }>(
-        `/api/tenants/${tenantSlug}/availability?${query.toString()}`
-      );
-      if (!result.ok) {
-        setWalkInSlots([]);
-        return;
-      }
-      const seen = new Set<string>();
-      setWalkInSlots(
-        (result.data.slots ?? [])
-          .filter((slot: Slot) => slot.available)
-          .filter((slot: Slot) => {
-            if (seen.has(slot.startAt)) {
-              return false;
-            }
-            seen.add(slot.startAt);
-            return true;
-          })
-      );
-    } finally {
-      setWalkInSlotsLoading(false);
-    }
-  }, [tenantSlug, date, walkIn.staffId, walkIn.serviceId]);
+    setWalkInSlotsLoading(false);
+  }, [tenantSlug, date, timezone, walkIn.staffId, walkIn.serviceId]);
 
   useEffect(() => {
     loadReception();
   }, [loadReception]);
-
-  useEffect(() => {
-    if (!tenantSlug || !walkIn.staffId || !walkIn.serviceId) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      loadWalkInSlots();
-    }, 200);
-    return () => window.clearTimeout(timer);
-  }, [tenantSlug, walkIn.staffId, walkIn.serviceId, date, loadWalkInSlots]);
 
   async function createWalkIn(event: React.FormEvent) {
     event.preventDefault();

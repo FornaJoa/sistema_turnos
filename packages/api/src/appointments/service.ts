@@ -70,6 +70,7 @@ async function getTenantContext(tenantSlug: string) {
 }
 
 async function assertSlotAvailable(
+  client: Pick<typeof db, "query">,
   tenantId: string,
   staffId: string,
   startAt: Date,
@@ -77,7 +78,7 @@ async function assertSlotAvailable(
   excludeHoldId?: string
 ) {
   const [appointmentConflict, holdConflict] = await Promise.all([
-    db.query.appointments.findFirst({
+    client.query.appointments.findFirst({
       where: and(
         eq(appointments.tenantId, tenantId),
         eq(appointments.staffId, staffId),
@@ -87,7 +88,7 @@ async function assertSlotAvailable(
       ),
       columns: { id: true },
     }),
-    db.query.appointmentHolds.findFirst({
+    client.query.appointmentHolds.findFirst({
       where: and(
         eq(appointmentHolds.tenantId, tenantId),
         eq(appointmentHolds.staffId, staffId),
@@ -122,7 +123,7 @@ export async function createHold(input: CreateHoldInput) {
   const endAt = addMinutes(startAt, service.durationMinutes);
 
   return db.transaction(async (tx) => {
-    await assertSlotAvailable(tenant.id, input.staffId, startAt, endAt);
+    await assertSlotAvailable(tx, tenant.id, input.staffId, startAt, endAt);
 
     const expiresAt = addMinutes(new Date(), holdMinutes);
     const [hold] = await tx
@@ -164,13 +165,7 @@ export async function confirmAppointment(input: ConfirmAppointmentInput) {
       throw new HoldExpiredError();
     }
 
-    await assertSlotAvailable(
-      hold.tenantId,
-      hold.staffId,
-      hold.startAt,
-      hold.endAt,
-      hold.id
-    );
+    await assertSlotAvailable(tx, hold.tenantId, hold.staffId, hold.startAt, hold.endAt, hold.id);
 
     const tenant = await tx.query.tenants.findFirst({
       where: eq(tenants.id, hold.tenantId),
@@ -231,7 +226,7 @@ export async function createWalkInAppointment(input: WalkInInput) {
   const endAt = addMinutes(startAt, service.durationMinutes);
 
   return db.transaction(async (tx) => {
-    await assertSlotAvailable(tenant.id, input.staffId, startAt, endAt);
+    await assertSlotAvailable(tx, tenant.id, input.staffId, startAt, endAt);
 
     const [appointment] = await tx
       .insert(appointments)

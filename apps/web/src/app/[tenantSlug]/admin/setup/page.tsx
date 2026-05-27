@@ -22,6 +22,7 @@ export default function SetupPage({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     params.then((value) => setTenantSlug(value.tenantSlug));
@@ -59,16 +60,17 @@ export default function SetupPage({
     event.preventDefault();
     setError("");
     setMessage("");
+    setSaving(true);
 
-    const response = await fetch(`/api/tenants/${tenantSlug}/setup`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/setup`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    const data = await response.json();
+    setSaving(false);
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo guardar");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
@@ -161,7 +163,9 @@ export default function SetupPage({
             {message && <p className="text-sm text-green-700">{message}</p>}
 
             <div className="flex flex-wrap gap-3">
-              <Button type="submit">Guardar configuración</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Guardando..." : "Guardar configuración"}
+              </Button>
               <Link href={`/${tenantSlug}`}>
                 <Button type="button" variant="secondary">
                   Ver sitio público

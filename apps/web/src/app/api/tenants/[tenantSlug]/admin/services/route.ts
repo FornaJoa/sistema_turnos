@@ -3,56 +3,62 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getMembershipForTenant } from "@sistema-turnos/api";
-import { getTenantBySlugFresh } from "@/lib/tenant";
+import { findTenantBySlug } from "@/lib/tenant";
 import { revalidateTenant } from "@/lib/revalidate";
+import { handleRouteError, jsonError } from "@/lib/api-route";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ tenantSlug: string }> }
 ) {
-  const { tenantSlug } = await params;
-  const session = await getSession();
-  const membership = session ? getMembershipForTenant(session, tenantSlug) : undefined;
+  try {
+    const { tenantSlug } = await params;
+    const session = await getSession();
+    const membership = session ? getMembershipForTenant(session, tenantSlug) : undefined;
 
-  if (!membership || !["admin", "owner"].includes(membership.role)) {
-    return NextResponse.json(
-      { error: "Debés iniciar sesión como admin o dueño." },
-      { status: 401 }
-    );
-  }
+    if (!membership || !["admin", "owner"].includes(membership.role)) {
+      return jsonError("Debés iniciar sesión como admin o dueño.", 401);
+    }
 
-  const tenant = await getTenantBySlugFresh(tenantSlug);
-  const body = await request.json();
+    const tenant = await findTenantBySlug(tenantSlug);
+    if (!tenant) {
+      return jsonError("Local no encontrado.", 404);
+    }
 
-  if (!body.name?.trim()) {
-    return NextResponse.json({ error: "El nombre es obligatorio." }, { status: 400 });
-  }
+    const body = await request.json().catch(() => ({}));
 
-  const durationMinutes = Number(body.durationMinutes) || 30;
-  const priceCents = body.pricePesos != null ? Math.round(Number(body.pricePesos) * 100) : null;
+    if (!body.name?.trim()) {
+      return jsonError("El nombre es obligatorio.", 400);
+    }
 
-  const [created] = await db
-    .insert(services)
-    .values({
-      tenantId: tenant.id,
-      name: body.name.trim(),
-      durationMinutes,
-      priceCents,
-    })
-    .returning();
+    const durationMinutes = Number(body.durationMinutes) || 30;
+    const priceCents = body.pricePesos != null ? Math.round(Number(body.pricePesos) * 100) : null;
 
-  const staffMembers = await db.query.staff.findMany({
-    where: eq(staff.tenantId, tenant.id),
-  });
+    const [created] = await db
+      .insert(services)
+      .values({
+        tenantId: tenant.id,
+        name: body.name.trim(),
+        durationMinutes,
+        priceCents,
+      })
+      .returning();
 
-  for (const member of staffMembers) {
-    await db.insert(staffServices).values({
-      staffId: member.id,
-      serviceId: created.id,
+    const staffMembers = await db.query.staff.findMany({
+      where: eq(staff.tenantId, tenant.id),
     });
+
+    for (const member of staffMembers) {
+      await db.insert(staffServices).values({
+        staffId: member.id,
+        serviceId: created.id,
+      });
+    }
+
+    revalidateTenant(tenantSlug);
+
+    return NextResponse.json({ service: created });
+  } catch (error) {
+    return handleRouteError(error, "admin/services/post");
   }
-
-  revalidateTenant(tenantSlug);
-
-  return NextResponse.json({ service: created });
 }

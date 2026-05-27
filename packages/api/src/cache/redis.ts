@@ -1,5 +1,4 @@
 import { Redis as UpstashRedis } from "@upstash/redis";
-import Redis from "ioredis";
 
 interface RedisLike {
   get(key: string): Promise<string | null>;
@@ -10,8 +9,37 @@ interface RedisLike {
 }
 
 let client: RedisLike | null | undefined;
+let clientInit: Promise<RedisLike | null> | null = null;
 
-function createClient(): RedisLike | null {
+async function createIoredisClient(redisUrl: string): Promise<RedisLike> {
+  const { default: Redis } = await import("ioredis");
+  const io = new Redis(redisUrl, {
+    maxRetriesPerRequest: 2,
+    lazyConnect: true,
+  });
+
+  return {
+    get: async (key) => io.get(key),
+    set: async (key, value, ttlSeconds) => {
+      if (ttlSeconds) {
+        await io.set(key, value, "EX", ttlSeconds);
+        return;
+      }
+      await io.set(key, value);
+    },
+    del: async (...keys) => {
+      if (keys.length > 0) {
+        await io.del(...keys);
+      }
+    },
+    incr: async (key) => io.incr(key),
+    expire: async (key, seconds) => {
+      await io.expire(key, seconds);
+    },
+  };
+}
+
+async function initClient(): Promise<RedisLike | null> {
   const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
   const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -42,40 +70,21 @@ function createClient(): RedisLike | null {
   }
 
   const redisUrl = process.env.REDIS_URL;
-  if (redisUrl && redisUrl !== "redis://localhost:6379") {
-    const io = new Redis(redisUrl, {
-      maxRetriesPerRequest: 2,
-      lazyConnect: true,
-    });
-
-    return {
-      get: async (key) => io.get(key),
-      set: async (key, value, ttlSeconds) => {
-        if (ttlSeconds) {
-          await io.set(key, value, "EX", ttlSeconds);
-          return;
-        }
-        await io.set(key, value);
-      },
-      del: async (...keys) => {
-        if (keys.length > 0) {
-          await io.del(...keys);
-        }
-      },
-      incr: async (key) => io.incr(key),
-      expire: async (key, seconds) => {
-        await io.expire(key, seconds);
-      },
-    };
+  if (redisUrl && redisUrl !== "redis://localhost:6379" && process.env.NODE_ENV !== "production") {
+    return createIoredisClient(redisUrl);
   }
 
   return null;
 }
 
-function getClient(): RedisLike | null {
-  if (client === undefined) {
-    client = createClient();
+async function getClient(): Promise<RedisLike | null> {
+  if (client !== undefined) {
+    return client;
   }
+  if (!clientInit) {
+    clientInit = initClient();
+  }
+  client = await clientInit;
   return client;
 }
 
@@ -99,7 +108,7 @@ export async function invalidateAvailabilityCache(
   serviceId?: string,
   serviceIds?: string[]
 ): Promise<void> {
-  const redis = getClient();
+  const redis = await getClient();
   if (!redis) {
     return;
   }
@@ -126,7 +135,7 @@ export async function invalidateAvailabilityCache(
 }
 
 export async function getCachedAvailability<T>(key: string): Promise<T | null> {
-  const redis = getClient();
+  const redis = await getClient();
   if (!redis) {
     return null;
   }
@@ -147,7 +156,7 @@ export async function setCachedAvailability<T>(
   value: T,
   ttlSeconds = 120
 ): Promise<void> {
-  const redis = getClient();
+  const redis = await getClient();
   if (!redis) {
     return;
   }
@@ -164,7 +173,7 @@ export async function rateLimit(
   limit: number,
   windowSeconds: number
 ): Promise<{ allowed: boolean; remaining: number }> {
-  const redis = getClient();
+  const redis = await getClient();
   if (!redis) {
     return { allowed: true, remaining: limit };
   }
@@ -181,8 +190,4 @@ export async function rateLimit(
   } catch {
     return { allowed: true, remaining: limit };
   }
-}
-
-export function isRedisConfigured(): boolean {
-  return getClient() !== null;
 }

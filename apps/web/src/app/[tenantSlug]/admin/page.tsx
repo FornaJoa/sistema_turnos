@@ -79,16 +79,15 @@ export default function AdminPage({
     setError("");
     setMessage("");
 
-    const response = await fetch(`/api/tenants/${tenantSlug}/admin/staff`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/admin/staff`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(staffForm),
     });
-    const data = await response.json();
     setSaving(false);
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo crear el profesional");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
@@ -103,16 +102,15 @@ export default function AdminPage({
     setError("");
     setMessage("");
 
-    const response = await fetch(`/api/tenants/${tenantSlug}/admin/services`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/admin/services`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(serviceForm),
     });
-    const data = await response.json();
     setSaving(false);
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo crear el servicio");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
@@ -142,16 +140,15 @@ export default function AdminPage({
   async function saveStaffEdit(staffId: string) {
     setSaving(true);
     setError("");
-    const response = await fetch(`/api/tenants/${tenantSlug}/admin/staff/${staffId}`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/admin/staff/${staffId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editStaffForm),
     });
-    const data = await response.json();
     setSaving(false);
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo guardar");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
@@ -165,13 +162,12 @@ export default function AdminPage({
       return;
     }
 
-    const response = await fetch(`/api/tenants/${tenantSlug}/admin/staff/${staffId}`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/admin/staff/${staffId}`, {
       method: "DELETE",
     });
-    const data = await response.json();
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo eliminar");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
@@ -182,16 +178,15 @@ export default function AdminPage({
   async function saveServiceEdit(serviceId: string) {
     setSaving(true);
     setError("");
-    const response = await fetch(`/api/tenants/${tenantSlug}/admin/services/${serviceId}`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/admin/services/${serviceId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editServiceForm),
     });
-    const data = await response.json();
     setSaving(false);
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo guardar");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
@@ -205,13 +200,12 @@ export default function AdminPage({
       return;
     }
 
-    const response = await fetch(`/api/tenants/${tenantSlug}/admin/services/${serviceId}`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/admin/services/${serviceId}`, {
       method: "DELETE",
     });
-    const data = await response.json();
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo eliminar");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 

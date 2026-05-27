@@ -2,31 +2,42 @@ import { createHold, confirmAppointment, BookingConflictError, HoldExpiredError 
 import { rateLimit } from "@sistema-turnos/api";
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
-import { getTenantBySlug } from "@/lib/tenant";
+import { findTenantBySlug } from "@/lib/tenant";
+import { handleRouteError, jsonError } from "@/lib/api-route";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ tenantSlug: string }> }
 ) {
-  const { tenantSlug } = await params;
-  const tenant = await getTenantBySlug(tenantSlug);
-  const body = await request.json();
-  const action = String(body.action ?? "hold");
-
-  const ip = request.headers.get("x-forwarded-for") ?? "local";
-  const limit = await rateLimit(`booking:${tenant.id}:${ip}`, 20, 60);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: "Demasiadas solicitudes" }, { status: 429 });
-  }
-
   try {
+    const { tenantSlug } = await params;
+    const tenant = await findTenantBySlug(tenantSlug);
+    if (!tenant) {
+      return jsonError("Local no encontrado.", 404);
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonError("JSON inválido en la solicitud.", 400);
+    }
+
+    const action = String(body.action ?? "hold");
+
+    const ip = request.headers.get("x-forwarded-for") ?? "local";
+    const limit = await rateLimit(`booking:${tenant.id}:${ip}`, 20, 60);
+    if (!limit.allowed) {
+      return jsonError("Demasiadas solicitudes", 429);
+    }
+
     if (action === "hold") {
-      const sessionId = body.sessionId ?? nanoid();
+      const sessionId = String(body.sessionId ?? nanoid());
       const result = await createHold({
         tenantSlug,
-        staffId: body.staffId,
-        serviceId: body.serviceId,
-        startAt: body.startAt,
+        staffId: String(body.staffId ?? ""),
+        serviceId: String(body.serviceId ?? ""),
+        startAt: String(body.startAt ?? ""),
         sessionId,
       });
 
@@ -39,11 +50,11 @@ export async function POST(
 
     if (action === "confirm") {
       const appointment = await confirmAppointment({
-        holdId: body.holdId,
-        clientName: body.clientName,
-        clientEmail: body.clientEmail,
-        clientPhone: body.clientPhone,
-        notes: body.notes,
+        holdId: String(body.holdId ?? ""),
+        clientName: String(body.clientName ?? ""),
+        clientEmail: body.clientEmail ? String(body.clientEmail) : undefined,
+        clientPhone: body.clientPhone ? String(body.clientPhone) : undefined,
+        notes: body.notes ? String(body.notes) : undefined,
       });
 
       return NextResponse.json({
@@ -53,12 +64,11 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    return jsonError("Acción inválida.", 400);
   } catch (error) {
     if (error instanceof BookingConflictError || error instanceof HoldExpiredError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
-    console.error("[bookings]", error);
-    return NextResponse.json({ error: "No se pudo procesar la reserva." }, { status: 500 });
+    return handleRouteError(error, "bookings");
   }
 }
