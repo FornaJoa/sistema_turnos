@@ -1,0 +1,24 @@
+{
+  "name": "sistema-turnos",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@sistema-turnos/web",
+    "build": "npm run build --workspace=@sistema-turnos/web",
+    "db:generate": "npm run generate --workspace=@sistema-turnos/db",
+    "db:migrate": "npm run migrate --workspace=@sistema-turnos/db",
+    "db:push": "npm run push --workspace=@sistema-turnos/db",
+    "db:cleanup-schedules": "npm run cleanup-schedules --workspace=@sistema-turnos/db",
+    "db:seed": "npm run seed --workspace=@sistema-turnos/db",
+    "test": "npm run test --workspace=@sistema-turnos/api",
+    "cf:build": "npm run cf:build --workspace=@sistema-turnos/web",
+    "cf:preview": "npm run cf:preview --workspace=@sistema-turnos/web",
+    "cf:deploy": "npm run cf:deploy --workspace=@sistema-turnos/web",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  }
+}

@@ -1,0 +1,13 @@
+# Copiá a .dev.vars para `npm run cf:preview` (no commitear .dev.vars)
+NEXTJS_ENV=development
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
+UPSTASH_REDIS_REST_URL=https://YOUR-DB.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-upstash-token
+AUTH_SECRET=change-me-to-a-long-random-string
+APP_URL=http://localhost:8787
+CRON_SECRET=dev-cron
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=turnos@example.com
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_BUSINESS_ACCOUNT_ID=
