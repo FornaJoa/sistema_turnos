@@ -56,6 +56,7 @@ export function PublicBookingFlow({
   const [loading, setLoading] = useState(false);
   const [confirmedToken, setConfirmedToken] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [reservingSlotStart, setReservingSlotStart] = useState<string | null>(null);
 
   useEffect(() => {
     setSessionId(nanoid());
@@ -155,33 +156,43 @@ export function PublicBookingFlow({
 
   const reserveSlot = useCallback(
     async (slot: Slot) => {
+      if (!sessionId) {
+        setError("Cargando la reserva, intentá de nuevo en un segundo.");
+        return;
+      }
+
       setError("");
+      setMessage("");
       setLoading(true);
-      setSelectedSlot(slot);
+      setReservingSlotStart(slot.startAt);
 
-      const response = await fetch(`/api/tenants/${tenantSlug}/bookings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "hold",
-          staffId,
-          serviceId,
-          startAt: slot.startAt,
-          sessionId,
-        }),
-      });
+      const result = await fetchJson<{ holdId: string; expiresAt: string }>(
+        `/api/tenants/${tenantSlug}/bookings`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "hold",
+            staffId,
+            serviceId,
+            startAt: slot.startAt,
+            sessionId,
+          }),
+        }
+      );
 
-      const data = await response.json();
       setLoading(false);
+      setReservingSlotStart(null);
 
-      if (!response.ok) {
-        setError(data.error ?? "No se pudo reservar");
+      if (!result.ok) {
+        setError(result.error);
         setSelectedSlot(null);
         return;
       }
 
-      setHoldId(data.holdId);
-      setHoldExpiresAt(new Date(data.expiresAt).getTime());
+      setSelectedSlot(slot);
+      setHoldId(result.data.holdId);
+      setHoldExpiresAt(new Date(result.data.expiresAt).getTime());
       setMessage("Completá tus datos para confirmar.");
     },
     [tenantSlug, staffId, serviceId, sessionId]
@@ -196,7 +207,7 @@ export function PublicBookingFlow({
     setLoading(true);
     setError("");
 
-    const response = await fetch(`/api/tenants/${tenantSlug}/bookings`, {
+    const result = await fetchJson<{ publicToken: string }>(`/api/tenants/${tenantSlug}/bookings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -208,15 +219,14 @@ export function PublicBookingFlow({
       }),
     });
 
-    const data = await response.json();
     setLoading(false);
 
-    if (!response.ok) {
-      setError(data.error ?? "No se pudo confirmar");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
-    setConfirmedToken(data.publicToken);
+    setConfirmedToken(result.data.publicToken);
     setMessage("Turno confirmado. Revisá tu email.");
   }
 
@@ -295,14 +305,18 @@ export function PublicBookingFlow({
                   variant={selectedSlot?.startAt === slot.startAt ? "primary" : "outline"}
                   className="min-h-11 px-2"
                   onClick={() => reserveSlot(slot)}
-                  disabled={loading}
+                  disabled={loading || !sessionId}
                 >
-                  {formatTimeOnly(slot.startAt, catalog.tenant.timezone)}
+                  {reservingSlotStart === slot.startAt
+                    ? "Reservando..."
+                    : formatTimeOnly(slot.startAt, catalog.tenant.timezone)}
                 </Button>
               ))}
             </div>
           )}
         </div>
+
+        {error && !holdId && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
         {holdId && (
           <form className="mt-6 space-y-3 border-t border-zinc-200 pt-4" onSubmit={confirmBooking}>

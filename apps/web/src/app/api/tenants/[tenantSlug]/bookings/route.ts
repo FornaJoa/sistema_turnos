@@ -58,6 +58,7 @@ export async function POST(
     if (error instanceof BookingConflictError || error instanceof HoldExpiredError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
-    throw error;
+    console.error("[bookings]", error);
+    return NextResponse.json({ error: "No se pudo procesar la reserva." }, { status: 500 });
   }
 }

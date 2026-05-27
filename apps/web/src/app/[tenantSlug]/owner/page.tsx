@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, LoadingGrid } from "@/components/ui";
+import { Card, LoadingGrid, StatusBadge } from "@/components/ui";
 import { PanelHeader } from "@/components/panel-nav";
 import { fetchJson } from "@/lib/fetch-json";
 
@@ -86,12 +86,16 @@ export default function OwnerAnalyticsPage({
         </Card>
         <Card>
           <p className="text-sm text-zinc-500">Estados</p>
-          <div className="mt-2 space-y-1 text-sm">
-            {analytics.statusCounts.map((row: any) => (
-              <p key={row.status}>
-                {row.status}: {row.count}
-              </p>
+          <div className="mt-3 space-y-2">
+            {analytics.statusCounts.map((row: { status: string; count: number }) => (
+              <div key={row.status} className="flex items-center justify-between gap-3">
+                <StatusBadge status={row.status} />
+                <span className="text-lg font-semibold tabular-nums text-zinc-900">{row.count}</span>
+              </div>
             ))}
+            {analytics.statusCounts.length === 0 && (
+              <p className="text-sm text-zinc-500">Sin turnos en el período.</p>
+            )}
           </div>
         </Card>
       </div>
