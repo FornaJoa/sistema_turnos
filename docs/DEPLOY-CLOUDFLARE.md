@@ -135,7 +135,9 @@ Al terminar verás una URL tipo `https://sistema-turnos.TU_SUBDOMINIO.workers.de
 | **Root directory** | `/` (raíz del monorepo) |
 | **Build command** | *(dejar vacío)* |
 | **Deploy command** | `npm ci && npm run cf:deploy:ci` |
-| **Version command** | *(dejar vacío o borrar `npx wrangler versions upload`)* |
+| **Version command** | `true` *(no lo dejes vacío: el dashboard da error al guardar)* |
+
+> **Version command vacío:** Cloudflare no deja borrar ese campo y muestra *"An internal error prevented the form from submitting"*. Poné `true` (comando que no hace nada en Linux) en lugar de dejarlo en blanco.
 
 > **Por qué fallaba:** `npx wrangler deploy` / `npx wrangler versions upload` sin el build OpenNext no encuentra `.open-next/worker.js` y muestra el error de `assets` / `wrangler.jsonc`. Hay que compilar con OpenNext **antes** de subir.
 >
