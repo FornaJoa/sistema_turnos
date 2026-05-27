@@ -47,7 +47,7 @@ export function PublicBookingFlow({
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [holdId, setHoldId] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<number | null>(null);
-  const [sessionId] = useState(() => nanoid());
+  const [sessionId, setSessionId] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -58,6 +58,7 @@ export function PublicBookingFlow({
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   useEffect(() => {
+    setSessionId(nanoid());
     setClientReady(true);
   }, []);
 
