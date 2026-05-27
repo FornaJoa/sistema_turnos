@@ -4,9 +4,15 @@ import { setSessionCookie } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const email = String(body.email ?? "");
-    const password = String(body.password ?? "");
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "JSON inválido en la solicitud." }, { status: 400 });
+    }
+
+    const email = String((body as { email?: string }).email ?? "");
+    const password = String((body as { password?: string }).password ?? "");
 
     const session = await verifyCredentials(email, password);
     if (!session) {

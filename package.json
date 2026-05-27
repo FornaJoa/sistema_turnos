@@ -18,7 +18,7 @@
     "cf:build": "npm run cf:build --workspace=@sistema-turnos/web",
     "cf:preview": "npm run cf:preview --workspace=@sistema-turnos/web",
     "cf:deploy": "npm run cf:deploy --workspace=@sistema-turnos/web",
-    "cf:deploy:ci": "npm run cf:build --workspace=@sistema-turnos/web && npx wrangler deploy --config apps/web/wrangler.jsonc",
+    "cf:deploy:ci": "npm run cf:build --workspace=@sistema-turnos/web && npx wrangler deploy --config apps/web/wrangler.jsonc --keep-vars",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   }

@@ -227,6 +227,7 @@ Pasá al plan Workers Paid ($5/mes) o reducí dependencias. OpenNext comprime co
 ### Error de conexión a DB
 - Verificá que `DATABASE_URL` use el host **pooler** de Neon.
 - Confirmá `DB_POOL_MAX=1`.
+- En Cloudflare Workers, Neon debe usar el driver HTTP (automático si la URL contiene `neon.tech`). No uses TCP/`postgres.js` en edge: puede colgar y dar Error 1101.
 
 ### Redis no funciona
 Solo Upstash REST. No configures `REDIS_URL` en Cloudflare.
