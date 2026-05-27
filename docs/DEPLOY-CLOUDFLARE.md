@@ -128,13 +128,22 @@ Al terminar verás una URL tipo `https://sistema-turnos.TU_SUBDOMINIO.workers.de
 
 1. Entrá a [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → **Create**.
 2. Elegí **Connect to Git** → autorizá GitHub → seleccioná `sistema-turnos`.
-3. Configuración del build:
+3. Configuración del build (importante: ver nota sobre **Version command**):
 
 | Campo | Valor |
 |-------|-------|
 | **Root directory** | `/` (raíz del monorepo) |
-| **Build command** | `npm ci && npm run cf:build` |
-| **Deploy command** | `npx wrangler deploy --config apps/web/wrangler.jsonc` |
+| **Build command** | *(dejar vacío)* |
+| **Deploy command** | `npm ci && npm run cf:deploy:ci` |
+| **Version command** | *(dejar vacío o borrar `npx wrangler versions upload`)* |
+
+> **Por qué fallaba:** `npx wrangler deploy` / `npx wrangler versions upload` sin el build OpenNext no encuentra `.open-next/worker.js` y muestra el error de `assets` / `wrangler.jsonc`. Hay que compilar con OpenNext **antes** de subir.
+>
+> Alternativa (dos pasos, mismo job):
+> - Build: `npm ci && npm run cf:build`
+> - Deploy: `npx wrangler deploy --config apps/web/wrangler.jsonc`
+>
+> No uses `npx wrangler versions upload` solo, sin `--config apps/web/wrangler.jsonc` y sin build previo.
 
 4. En **Settings → Variables and Secrets**, agregá las mismas variables que arriba (`DATABASE_URL`, `AUTH_SECRET`, etc.) como **Secrets** (encrypted).
 5. Variable pública opcional en **Vars**: `DB_POOL_MAX` = `1` (ya está en `wrangler.jsonc`).
