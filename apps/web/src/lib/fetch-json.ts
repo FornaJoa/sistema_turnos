@@ -13,16 +13,32 @@ export async function fetchJson<T>(
   init?: RequestInit
 ): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string; data?: T }> {
   try {
-    const response = await fetch(url, init);
+    const response = await fetch(url, {
+      credentials: "same-origin",
+      ...init,
+    });
     const contentType = response.headers.get("content-type") ?? "";
 
     if (!contentType.includes("application/json")) {
       const text = (await response.text()).trim();
-      const snippet = text.startsWith("<") ? "El servidor devolvió HTML en lugar de JSON." : text.slice(0, 120);
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false,
+          status: response.status,
+          error: "Debés iniciar sesión.",
+        };
+      }
+      if (text.startsWith("<")) {
+        return {
+          ok: false,
+          status: response.status,
+          error: "Error del servidor. Recargá la página o volvé a iniciar sesión.",
+        };
+      }
       return {
         ok: false,
         status: response.status,
-        error: snippet || `Respuesta inválida (${response.status})`,
+        error: text.slice(0, 120) || `Respuesta inválida (${response.status})`,
       };
     }
 

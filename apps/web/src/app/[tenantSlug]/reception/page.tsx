@@ -148,27 +148,38 @@ export default function ReceptionPage({
 
   async function createWalkIn(event: React.FormEvent) {
     event.preventDefault();
-    const response = await fetch(`/api/tenants/${tenantSlug}/appointments`, {
+    setError("");
+    setMessage("");
+
+    const result = await fetchJson<{ appointment: unknown }>(`/api/tenants/${tenantSlug}/appointments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(walkIn),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      setMessage(data.error ?? "Error");
+
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
+
     setMessage("Turno walk-in creado");
     setWalkIn((prev) => ({ ...prev, clientName: "", clientPhone: "", startAt: "" }));
     loadReception();
   }
 
   async function updateStatus(appointmentId: string, status: string) {
-    await fetch(`/api/tenants/${tenantSlug}/appointments`, {
+    const result = await fetchJson(`/api/tenants/${tenantSlug}/appointments`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ appointmentId, status }),
     });
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
+    setError("");
     loadReception();
   }
 
@@ -288,6 +299,7 @@ export default function ReceptionPage({
               />
             </div>
             {message && <p className="text-sm text-green-700">{message}</p>}
+            {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit" disabled={!walkIn.startAt}>
               Crear turno presencial
             </Button>
@@ -297,6 +309,7 @@ export default function ReceptionPage({
 
       <Card>
         <h2 className="text-xl font-semibold">Agenda del día</h2>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-4 space-y-3">
           {appointments.map((appointment) => (
             <div

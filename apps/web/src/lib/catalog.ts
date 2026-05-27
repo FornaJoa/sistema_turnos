@@ -39,6 +39,11 @@ export async function fetchTenantCatalog(tenantSlug: string) {
   return data;
 }
 
+/** Para route handlers: nunca devuelve HTML de notFound(). */
+export async function getTenantCatalogForApi(tenantSlug: string) {
+  return loadTenantWithCatalog(tenantSlug);
+}
+
 export function getCachedTenantCatalog(tenantSlug: string) {
   return unstable_cache(
     () => fetchTenantCatalog(tenantSlug),

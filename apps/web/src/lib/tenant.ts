@@ -31,3 +31,7 @@ export async function getTenantBySlugFresh(slug: string) {
   }
   return tenant;
 }
+
+export async function findTenantBySlug(slug: string) {
+  return fetchTenantBySlug(slug);
+}
