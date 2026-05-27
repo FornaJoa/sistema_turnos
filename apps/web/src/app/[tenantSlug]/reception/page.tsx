@@ -49,23 +49,29 @@ export default function ReceptionPage({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    params.then((value) => setTenantSlug(value.tenantSlug));
-  }, [params]);
+    params.then((value) => {
+      setTenantSlug(value.tenantSlug);
+      setDate((current) => current || getTodayDateString(timezone));
+    });
+  }, [params, timezone]);
 
   useEffect(() => {
     setClientReady(true);
   }, []);
 
   const loadReception = useCallback(async () => {
-    if (!tenantSlug || !date) {
+    if (!tenantSlug) {
       return;
     }
+
+    const queryDate = date || getTodayDateString(timezone);
     setLoading(true);
     const result = await fetchJson<{
       catalog: any;
       summary: typeof summary;
       appointments: any[];
-    }>(`/api/tenants/${tenantSlug}/reception?date=${date}`);
+      date?: string;
+    }>(`/api/tenants/${tenantSlug}/reception?date=${queryDate}`);
 
     if (!result.ok) {
       setError(result.error);
@@ -75,11 +81,10 @@ export default function ReceptionPage({
     }
 
     const data = result.data;
+    const tenantTimezone = data.catalog?.tenant?.timezone ?? timezone;
     setCatalog(data.catalog);
-    setTimezone(data.catalog?.tenant?.timezone ?? timezone);
-    if (!date) {
-      setDate(getTodayDateString(data.catalog?.tenant?.timezone ?? timezone));
-    }
+    setTimezone(tenantTimezone);
+    setDate(data.date ?? queryDate);
     setSummary(data.summary ?? []);
     setAppointments(data.appointments ?? []);
     setError("");
@@ -95,10 +100,11 @@ export default function ReceptionPage({
     if (!tenantSlug || !walkIn.staffId || !walkIn.serviceId) {
       return;
     }
+    const queryDate = date || getTodayDateString(timezone);
     setWalkInSlotsLoading(true);
     try {
       const query = new URLSearchParams({
-        date,
+        date: queryDate,
         staffId: walkIn.staffId,
         serviceId: walkIn.serviceId,
       });
@@ -166,7 +172,7 @@ export default function ReceptionPage({
     loadReception();
   }
 
-  if (!tenantSlug || !clientReady || loading || !date) {
+  if (!tenantSlug || !clientReady || loading) {
     return (
       <main className="mx-auto max-w-6xl space-y-6 p-6">
         <LoadingGrid count={4} />
