@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { db, services } from "@sistema-turnos/db";
+import { db, services, staffServices } from "@sistema-turnos/db";
 import { NextResponse } from "next/server";
 import { findTenantBySlug } from "@/lib/tenant";
 import { requireTenantAdmin } from "@/lib/admin-auth";
@@ -83,6 +83,8 @@ export async function DELETE(
       .update(services)
       .set({ isActive: false, updatedAt: new Date() })
       .where(eq(services.id, serviceId));
+
+    await db.delete(staffServices).where(eq(staffServices.serviceId, serviceId));
 
     revalidateTenant(tenantSlug);
     return NextResponse.json({ ok: true });

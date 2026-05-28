@@ -13,6 +13,7 @@ export async function getTenantCatalog(tenantId: string) {
     }),
   ]);
 
+  const activeServiceIds = new Set(serviceList.map((service) => service.id));
   const staffIds = staffList.map((member) => member.id);
   const allLinks =
     staffIds.length > 0
@@ -23,6 +24,9 @@ export async function getTenantCatalog(tenantId: string) {
 
   const linksByStaff = new Map<string, string[]>();
   for (const link of allLinks) {
+    if (!activeServiceIds.has(link.serviceId)) {
+      continue;
+    }
     const current = linksByStaff.get(link.staffId) ?? [];
     current.push(link.serviceId);
     linksByStaff.set(link.staffId, current);

@@ -53,9 +53,42 @@ interface TimedRange {
   endAt: Date;
 }
 
-function parseTimeOnDate(date: string, time: string, timezone: string): Date {
-  const local = `${date}T${time.length === 5 ? `${time}:00` : time}`;
-  return fromZonedTime(local, timezone);
+function normalizeTimeValue(time: unknown): string | null {
+  if (time == null) {
+    return null;
+  }
+
+  if (typeof time === "string") {
+    const trimmed = time.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (/^\d{2}:\d{2}$/.test(trimmed)) {
+      return `${trimmed}:00`;
+    }
+    if (/^\d{2}:\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 8);
+    }
+    return trimmed;
+  }
+
+  if (time instanceof Date && !Number.isNaN(time.getTime())) {
+    return format(time, "HH:mm:ss");
+  }
+
+  const asString = String(time).trim();
+  return asString || null;
+}
+
+function parseTimeOnDate(date: string, time: unknown, timezone: string): Date | null {
+  const normalized = normalizeTimeValue(time);
+  if (!normalized) {
+    return null;
+  }
+
+  const local = `${date}T${normalized}`;
+  const parsed = fromZonedTime(local, timezone);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
@@ -76,10 +109,15 @@ function groupByStaffId<T extends { staffId: string }>(items: T[]): Map<string, 
   return map;
 }
 
-function dedupeSchedules<T extends { startTime: string; endTime: string }>(schedules: T[]): T[] {
+function dedupeSchedules<T extends { startTime: unknown; endTime: unknown }>(schedules: T[]): T[] {
   const seen = new Set<string>();
   return schedules.filter((schedule) => {
-    const key = `${schedule.startTime}-${schedule.endTime}`;
+    const start = normalizeTimeValue(schedule.startTime);
+    const end = normalizeTimeValue(schedule.endTime);
+    if (!start || !end) {
+      return false;
+    }
+    const key = `${start}-${end}`;
     if (seen.has(key)) {
       return false;
     }
@@ -129,16 +167,19 @@ function computeSlots(input: {
   const windows: Array<{ start: Date; end: Date }> = [];
 
   if (staffException?.startTime && staffException.endTime) {
-    windows.push({
-      start: parseTimeOnDate(input.date, staffException.startTime, input.timezone),
-      end: parseTimeOnDate(input.date, staffException.endTime, input.timezone),
-    });
+    const start = parseTimeOnDate(input.date, staffException.startTime, input.timezone);
+    const end = parseTimeOnDate(input.date, staffException.endTime, input.timezone);
+    if (start && end && start.getTime() < end.getTime()) {
+      windows.push({ start, end });
+    }
   } else {
     for (const schedule of dedupeSchedules(input.daySchedules)) {
-      windows.push({
-        start: parseTimeOnDate(input.date, schedule.startTime, input.timezone),
-        end: parseTimeOnDate(input.date, schedule.endTime, input.timezone),
-      });
+      const start = parseTimeOnDate(input.date, schedule.startTime, input.timezone);
+      const end = parseTimeOnDate(input.date, schedule.endTime, input.timezone);
+      if (!start || !end || start.getTime() >= end.getTime()) {
+        continue;
+      }
+      windows.push({ start, end });
     }
   }
 
@@ -147,17 +188,23 @@ function computeSlots(input: {
   }
 
   const slots: TimeSlot[] = [];
+  const slotIntervalMinutes = Math.max(1, input.slotIntervalMinutes);
+  const maxIterationsPerWindow = 512;
 
   for (const window of windows) {
     let cursor = window.start;
+    let iterations = 0;
+
     while (
-      isBefore(addMinutes(cursor, input.durationMinutes), window.end) ||
-      addMinutes(cursor, input.durationMinutes).getTime() === window.end.getTime()
+      (isBefore(addMinutes(cursor, input.durationMinutes), window.end) ||
+        addMinutes(cursor, input.durationMinutes).getTime() === window.end.getTime()) &&
+      iterations < maxIterationsPerWindow
     ) {
+      iterations += 1;
       const slotEnd = addMinutes(cursor, input.durationMinutes);
 
       if (isBefore(slotEnd, now)) {
-        cursor = addMinutes(cursor, input.slotIntervalMinutes);
+        cursor = addMinutes(cursor, slotIntervalMinutes);
         continue;
       }
 
@@ -171,7 +218,7 @@ function computeSlots(input: {
         available: !blocked,
       });
 
-      cursor = addMinutes(cursor, input.slotIntervalMinutes);
+      cursor = addMinutes(cursor, slotIntervalMinutes);
     }
   }
 
@@ -284,24 +331,32 @@ export async function getAvailableSlots(
     return [];
   }
 
-  const interval =
-    options.slotIntervalMinutes ?? dayContext.settings?.slotIntervalMinutes ?? 15;
+  const interval = Math.max(
+    1,
+    options.slotIntervalMinutes ?? dayContext.settings?.slotIntervalMinutes ?? 15
+  );
   const blockedRanges = [
     ...(dayContext.appointmentsByStaff.get(options.staffId) ?? []),
     ...(dayContext.holdsByStaff.get(options.staffId) ?? []),
   ];
 
-  const slots = computeSlots({
-    date: options.date,
-    timezone: options.timezone,
-    durationMinutes: service.durationMinutes,
-    slotIntervalMinutes: interval,
-    daySchedules: dayContext.schedulesByStaff.get(options.staffId) ?? [],
-    exceptions: dayContext.exceptions,
-    staffId: options.staffId,
-    blockedRanges,
-    now: dayContext.now,
-  });
+  let slots: TimeSlot[] = [];
+  try {
+    slots = computeSlots({
+      date: options.date,
+      timezone: options.timezone,
+      durationMinutes: service.durationMinutes,
+      slotIntervalMinutes: interval,
+      daySchedules: dayContext.schedulesByStaff.get(options.staffId) ?? [],
+      exceptions: dayContext.exceptions,
+      staffId: options.staffId,
+      blockedRanges,
+      now: dayContext.now,
+    });
+  } catch (error) {
+    console.error("[availability/slots]", options.staffId, error);
+    return [];
+  }
 
   await setCachedAvailability(cacheKey, slots, 120);
   return slots;
@@ -344,37 +399,51 @@ export async function getStaffAvailabilitySummary(
 
   const staffIds = staffMembers.map((member) => member.id);
   const dayContext = await loadDayContext(tenantId, staffIds, date, timezone);
-  const interval = dayContext.settings?.slotIntervalMinutes ?? 15;
+  const interval = Math.max(1, dayContext.settings?.slotIntervalMinutes ?? 15);
 
   const perStaff = staffMembers.map((member) => {
-    const blockedRanges = [
-      ...(dayContext.appointmentsByStaff.get(member.id) ?? []),
-      ...(dayContext.holdsByStaff.get(member.id) ?? []),
-    ];
+    try {
+      const blockedRanges = [
+        ...(dayContext.appointmentsByStaff.get(member.id) ?? []),
+        ...(dayContext.holdsByStaff.get(member.id) ?? []),
+      ];
 
-    const slots = computeSlots({
-      date,
-      timezone,
-      durationMinutes: defaultService.durationMinutes,
-      slotIntervalMinutes: interval,
-      daySchedules: dayContext.schedulesByStaff.get(member.id) ?? [],
-      exceptions: dayContext.exceptions,
-      staffId: member.id,
-      blockedRanges,
-      now: dayContext.now,
-    });
-
-    const available = slots.filter((slot) => slot.available);
-    return {
-      member,
-      slots,
-      summary: {
+      const slots = computeSlots({
+        date,
+        timezone,
+        durationMinutes: defaultService.durationMinutes,
+        slotIntervalMinutes: interval,
+        daySchedules: dayContext.schedulesByStaff.get(member.id) ?? [],
+        exceptions: dayContext.exceptions,
         staffId: member.id,
-        staffName: member.name,
-        nextAvailableSlot: available[0]?.startAt ?? null,
-        slotsToday: available.length,
-      },
-    };
+        blockedRanges,
+        now: dayContext.now,
+      });
+
+      const available = slots.filter((slot) => slot.available);
+      return {
+        member,
+        slots,
+        summary: {
+          staffId: member.id,
+          staffName: member.name,
+          nextAvailableSlot: available[0]?.startAt ?? null,
+          slotsToday: available.length,
+        },
+      };
+    } catch (error) {
+      console.error("[availability/summary]", member.id, error);
+      return {
+        member,
+        slots: [] as TimeSlot[],
+        summary: {
+          staffId: member.id,
+          staffName: member.name,
+          nextAvailableSlot: null,
+          slotsToday: 0,
+        },
+      };
+    }
   });
 
   const summary = perStaff.map((row) => row.summary);
