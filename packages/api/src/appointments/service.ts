@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, lt, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   db,
+  withDbTransaction,
   appointmentHolds,
   appointments,
   services,
@@ -122,7 +123,7 @@ export async function createHold(input: CreateHoldInput) {
   const startAt = new Date(input.startAt);
   const endAt = addMinutes(startAt, service.durationMinutes);
 
-  return db.transaction(async (tx) => {
+  return withDbTransaction(async (tx) => {
     await assertSlotAvailable(tx, tenant.id, input.staffId, startAt, endAt);
 
     const expiresAt = addMinutes(new Date(), holdMinutes);
@@ -151,7 +152,7 @@ export async function createHold(input: CreateHoldInput) {
 }
 
 export async function confirmAppointment(input: ConfirmAppointmentInput) {
-  return db.transaction(async (tx) => {
+  return withDbTransaction(async (tx) => {
     const hold = await tx.query.appointmentHolds.findFirst({
       where: eq(appointmentHolds.id, input.holdId),
     });
@@ -225,7 +226,7 @@ export async function createWalkInAppointment(input: WalkInInput) {
   const startAt = new Date(input.startAt);
   const endAt = addMinutes(startAt, service.durationMinutes);
 
-  return db.transaction(async (tx) => {
+  return withDbTransaction(async (tx) => {
     await assertSlotAvailable(tx, tenant.id, input.staffId, startAt, endAt);
 
     const [appointment] = await tx

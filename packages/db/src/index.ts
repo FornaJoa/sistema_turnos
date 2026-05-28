@@ -1,4 +1,5 @@
-import { neonConfig, Pool } from "@neondatabase/serverless";
+import { neon, neonConfig, Pool } from "@neondatabase/serverless";
+import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
 import { drizzle as drizzleNeonServerless } from "drizzle-orm/neon-serverless";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -24,13 +25,13 @@ function shouldUseNeon(connectionString: string) {
 }
 
 const connectionString = resolveConnectionString();
+const useNeon = shouldUseNeon(connectionString);
 
 function createDb() {
-  if (shouldUseNeon(connectionString)) {
-    // WebSocket pool: soporta transacciones (hold/confirm). HTTP solo sirve para queries sueltas.
-    neonConfig.webSocketConstructor = globalThis.WebSocket;
-    const pool = new Pool({ connectionString });
-    return drizzleNeonServerless(pool, { schema });
+  if (useNeon) {
+    // HTTP: lecturas y writes simples (sin transacción). Estable en Cloudflare Workers.
+    const sql = neon(connectionString);
+    return drizzleNeonHttp(sql, { schema });
   }
 
   return drizzlePostgres(
@@ -45,4 +46,22 @@ function createDb() {
 }
 
 export const db = createDb();
+
+/** Transacciones con pool WebSocket efímero (requerido en Workers; no reutilizar pool global). */
+export async function withDbTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+  if (!useNeon) {
+    return db.transaction(fn);
+  }
+
+  neonConfig.webSocketConstructor = globalThis.WebSocket;
+  const pool = new Pool({ connectionString });
+
+  try {
+    const txDb = drizzleNeonServerless(pool, { schema });
+    return await txDb.transaction(fn);
+  } finally {
+    await pool.end();
+  }
+}
+
 export * from "./schema/index";
