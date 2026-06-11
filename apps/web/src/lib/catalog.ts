@@ -1,5 +1,5 @@
 import { getTenantCatalog } from "@sistema-turnos/api";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, tenants } from "@sistema-turnos/db";
 import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
@@ -8,7 +8,7 @@ export type TenantCatalog = Awaited<ReturnType<typeof fetchTenantCatalog>>;
 
 async function loadTenantWithCatalog(tenantSlug: string) {
   const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.slug, tenantSlug),
+    where: and(eq(tenants.slug, tenantSlug), eq(tenants.isActive, true)),
     with: { settings: true },
   });
 

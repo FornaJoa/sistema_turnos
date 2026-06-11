@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { PanelHeader } from "@/components/panel-nav";
+import { StaffOfferingsEditor } from "@/components/staff-offerings-editor";
+import { StaffSchedulesEditor } from "@/components/staff-schedules-editor";
 import { fetchJson } from "@/lib/fetch-json";
 import { formatMoney } from "@/lib/utils";
 
@@ -38,6 +40,7 @@ export default function AdminPage({
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editStaffForm, setEditStaffForm] = useState({ name: "", email: "", phone: "" });
+  const [editStaffServiceIds, setEditStaffServiceIds] = useState<string[]>([]);
   const [editServiceForm, setEditServiceForm] = useState({
     name: "",
     durationMinutes: 30,
@@ -126,6 +129,7 @@ export default function AdminPage({
       email: member.email ?? "",
       phone: member.phone ?? "",
     });
+    setEditStaffServiceIds(member.serviceIds);
   }
 
   function startEditService(service: ServiceItem) {
@@ -143,7 +147,7 @@ export default function AdminPage({
     const result = await fetchJson(`/api/tenants/${tenantSlug}/admin/staff/${staffId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editStaffForm),
+      body: JSON.stringify({ ...editStaffForm, serviceIds: editStaffServiceIds }),
     });
     setSaving(false);
 
@@ -294,6 +298,39 @@ export default function AdminPage({
                       <Button type="button" variant="secondary" onClick={() => setEditingStaffId(null)}>
                         Cancelar
                       </Button>
+                    </div>
+                    <div className="mt-4 border-t border-zinc-100 pt-4">
+                      <h4 className="mb-2 text-sm font-semibold text-zinc-800">Servicios que realiza</h4>
+                      <div className="space-y-2">
+                        {catalog.services.map((service: ServiceItem) => (
+                          <label key={service.id} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={editStaffServiceIds.includes(service.id)}
+                              onChange={(event) => {
+                                setEditStaffServiceIds((current) =>
+                                  event.target.checked
+                                    ? [...current, service.id]
+                                    : current.filter((id) => id !== service.id)
+                                );
+                              }}
+                            />
+                            <span>
+                              {service.name} · {service.durationMinutes} min
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-4 border-t border-zinc-100 pt-4">
+                      <h4 className="mb-2 text-sm font-semibold text-zinc-800">
+                        Precios y duración por servicio
+                      </h4>
+                      <StaffOfferingsEditor tenantSlug={tenantSlug} staffId={member.id} />
+                    </div>
+                    <div className="mt-4 border-t border-zinc-100 pt-4">
+                      <h4 className="mb-2 text-sm font-semibold text-zinc-800">Horarios semanales</h4>
+                      <StaffSchedulesEditor tenantSlug={tenantSlug} staffId={member.id} />
                     </div>
                   </div>
                 ) : (

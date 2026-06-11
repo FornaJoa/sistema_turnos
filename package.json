@@ -13,6 +13,7 @@
     "db:migrate": "npm run migrate --workspace=@sistema-turnos/db",
     "db:push": "npm run push --workspace=@sistema-turnos/db",
     "db:cleanup-schedules": "npm run cleanup-schedules --workspace=@sistema-turnos/db",
+    "db:apply-constraints": "npm run apply-constraints --workspace=@sistema-turnos/db",
     "db:seed": "npm run seed --workspace=@sistema-turnos/db",
     "test": "npm run test --workspace=@sistema-turnos/api",
     "cf:build": "npm run cf:build --workspace=@sistema-turnos/web",

@@ -1,4 +1,8 @@
-import { getAppointmentByPublicToken, updateAppointmentStatus } from "@sistema-turnos/api";
+import {
+  getAppointmentByPublicToken,
+  updateAppointmentStatus,
+  AppointmentStatusError,
+} from "@sistema-turnos/api";
 import { NextResponse } from "next/server";
 import { handleRouteError, jsonError } from "@/lib/api-route";
 
@@ -34,12 +38,30 @@ export async function PATCH(
 
     const body = await request.json().catch(() => ({}));
     if (body.action === "cancel") {
+      if (!["pending", "confirmed"].includes(appointment.status)) {
+        return jsonError("Este turno ya no se puede cancelar.", 409);
+      }
+
+      const cancellationHours = appointment.tenant.settings?.cancellationHours ?? 24;
+      const hoursUntil =
+        (new Date(appointment.startAt).getTime() - Date.now()) / (1000 * 60 * 60);
+
+      if (hoursUntil < cancellationHours) {
+        return jsonError(
+          `Solo podés cancelar hasta ${cancellationHours} horas antes del turno.`,
+          409
+        );
+      }
+
       const updated = await updateAppointmentStatus(appointment.id, "cancelled");
       return NextResponse.json({ appointment: updated });
     }
 
     return jsonError("Acción no válida.", 400);
   } catch (error) {
+    if (error instanceof AppointmentStatusError) {
+      return jsonError(error.message, 409);
+    }
     return handleRouteError(error, "appointments/public/patch");
   }
 }

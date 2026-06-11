@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, staff, services, staffServices, schedules } from "@sistema-turnos/db";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getMembershipForTenant } from "@sistema-turnos/api";
+import { getMembershipForTenant, staffCreateSchema } from "@sistema-turnos/api";
 import { findTenantBySlug } from "@/lib/tenant";
 import { revalidateTenant } from "@/lib/revalidate";
 import { handleRouteError, jsonError } from "@/lib/api-route";
@@ -25,19 +25,19 @@ export async function POST(
       return jsonError("Local no encontrado.", 404);
     }
 
-    const body = await request.json();
-
-    if (!body.name?.trim()) {
-      return jsonError("El nombre es obligatorio.", 400);
+    const body = await request.json().catch(() => null);
+    const parsed = staffCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message ?? "Datos inválidos.", 400);
     }
 
     const [created] = await db
       .insert(staff)
       .values({
         tenantId: tenant.id,
-        name: body.name.trim(),
-        email: body.email?.trim() || null,
-        phone: body.phone?.trim() || null,
+        name: parsed.data.name.trim(),
+        email: parsed.data.email?.trim() || null,
+        phone: parsed.data.phone?.trim() || null,
       })
       .returning();
 

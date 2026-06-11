@@ -161,6 +161,8 @@ export const staffServices = pgTable(
     serviceId: uuid("service_id")
       .notNull()
       .references(() => services.id, { onDelete: "cascade" }),
+    durationMinutes: integer("duration_minutes"),
+    priceCents: integer("price_cents"),
   },
   (table) => [
     uniqueIndex("staff_services_unique_idx").on(table.staffId, table.serviceId),

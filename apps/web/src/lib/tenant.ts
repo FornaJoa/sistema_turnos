@@ -1,18 +1,20 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, tenants } from "@sistema-turnos/db";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 
-async function fetchTenantBySlug(slug: string) {
+async function fetchTenantBySlug(slug: string, activeOnly = false) {
   return db.query.tenants.findFirst({
-    where: eq(tenants.slug, slug),
+    where: activeOnly
+      ? and(eq(tenants.slug, slug), eq(tenants.isActive, true))
+      : eq(tenants.slug, slug),
     with: { settings: true },
   });
 }
 
 export async function getTenantBySlug(slug: string) {
   const tenant = await unstable_cache(
-    () => fetchTenantBySlug(slug),
+    () => fetchTenantBySlug(slug, true),
     [`tenant-${slug}`],
     { revalidate: 120, tags: [`tenant-${slug}`] }
   )();
@@ -25,7 +27,7 @@ export async function getTenantBySlug(slug: string) {
 }
 
 export async function getTenantBySlugFresh(slug: string) {
-  const tenant = await fetchTenantBySlug(slug);
+  const tenant = await fetchTenantBySlug(slug, true);
   if (!tenant) {
     notFound();
   }
@@ -33,5 +35,9 @@ export async function getTenantBySlugFresh(slug: string) {
 }
 
 export async function findTenantBySlug(slug: string) {
-  return fetchTenantBySlug(slug);
+  return fetchTenantBySlug(slug, true);
+}
+
+export async function findTenantBySlugIncludingInactive(slug: string) {
+  return fetchTenantBySlug(slug, false);
 }

@@ -6,11 +6,11 @@ import {
   withDbTransaction,
   appointmentHolds,
   appointments,
-  services,
   tenantSettings,
   tenants,
 } from "@sistema-turnos/db";
 import { clearAvailabilityCacheForSlot, overlaps } from "../availability/engine";
+import { assertStaffServiceForTenant } from "../booking/validation";
 import { sendAppointmentNotifications } from "../notifications/service";
 
 export class BookingConflictError extends Error {
@@ -26,6 +26,24 @@ export class HoldExpiredError extends Error {
     this.name = "HoldExpiredError";
   }
 }
+
+export class AppointmentStatusError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AppointmentStatusError";
+  }
+}
+
+const ALLOWED_STATUS_TRANSITIONS: Record<
+  string,
+  Array<"confirmed" | "cancelled" | "completed" | "no_show">
+> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["completed", "cancelled", "no_show"],
+  completed: [],
+  cancelled: [],
+  no_show: [],
+};
 
 interface CreateHoldInput {
   tenantSlug: string;
@@ -112,16 +130,14 @@ export async function createHold(input: CreateHoldInput) {
   const settings = tenant.settings;
   const holdMinutes = settings?.holdMinutes ?? 5;
 
-  const service = await db.query.services.findFirst({
-    where: and(eq(services.id, input.serviceId), eq(services.tenantId, tenant.id)),
-  });
-
-  if (!service) {
-    throw new Error("Service not found");
-  }
+  const offering = await assertStaffServiceForTenant(
+    tenant.id,
+    input.staffId,
+    input.serviceId
+  );
 
   const startAt = new Date(input.startAt);
-  const endAt = addMinutes(startAt, service.durationMinutes);
+  const endAt = addMinutes(startAt, offering.durationMinutes);
 
   return withDbTransaction(async (tx) => {
     await assertSlotAvailable(tx, tenant.id, input.staffId, startAt, endAt);
@@ -207,6 +223,8 @@ export async function confirmAppointment(input: ConfirmAppointmentInput) {
       );
     }
 
+    return appointment;
+  }).then((appointment) => {
     void sendAppointmentNotifications(appointment.id, "appointment_created");
     return appointment;
   });
@@ -215,16 +233,14 @@ export async function confirmAppointment(input: ConfirmAppointmentInput) {
 export async function createWalkInAppointment(input: WalkInInput) {
   const tenant = await getTenantContext(input.tenantSlug);
 
-  const service = await db.query.services.findFirst({
-    where: and(eq(services.id, input.serviceId), eq(services.tenantId, tenant.id)),
-  });
-
-  if (!service) {
-    throw new Error("Service not found");
-  }
+  const offering = await assertStaffServiceForTenant(
+    tenant.id,
+    input.staffId,
+    input.serviceId
+  );
 
   const startAt = new Date(input.startAt);
-  const endAt = addMinutes(startAt, service.durationMinutes);
+  const endAt = addMinutes(startAt, offering.durationMinutes);
 
   return withDbTransaction(async (tx) => {
     await assertSlotAvailable(tx, tenant.id, input.staffId, startAt, endAt);
@@ -256,6 +272,8 @@ export async function createWalkInAppointment(input: WalkInInput) {
       startAt,
       tenant.timezone
     );
+    return appointment;
+  }).then((appointment) => {
     void sendAppointmentNotifications(appointment.id, "appointment_created");
     return appointment;
   });
@@ -272,6 +290,13 @@ export async function updateAppointmentStatus(
 
   if (!appointment) {
     throw new Error("Appointment not found");
+  }
+
+  const allowed = ALLOWED_STATUS_TRANSITIONS[appointment.status] ?? [];
+  if (!allowed.includes(status)) {
+    throw new AppointmentStatusError(
+      `No se puede cambiar de "${appointment.status}" a "${status}".`
+    );
   }
 
   const patch: Partial<typeof appointments.$inferInsert> = {

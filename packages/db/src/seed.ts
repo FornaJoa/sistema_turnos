@@ -22,7 +22,7 @@ async function seed() {
       email: "owner@demo.com",
       name: "Dueño Demo",
       passwordHash,
-      isPlatformAdmin: true,
+      isPlatformAdmin: false,
     })
     .onConflictDoNothing({ target: users.email })
     .returning();
@@ -30,6 +30,11 @@ async function seed() {
   const owner =
     ownerUser ??
     (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.email, "owner@demo.com") }))!;
+
+  await db
+    .update(users)
+    .set({ isPlatformAdmin: false, updatedAt: new Date() })
+    .where(eq(users.email, "owner@demo.com"));
 
   const [tenant] = await db
     .insert(tenants)

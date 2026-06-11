@@ -4,11 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Button, Card, Input, Label } from "@/components/ui";
 
+const isDev = process.env.NODE_ENV === "development";
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("owner@demo.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState(isDev ? "owner@demo.com" : "");
+  const [password, setPassword] = useState(isDev ? "password123" : "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -95,6 +97,11 @@ export default function LoginPage() {
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Ingresando..." : "Ingresar"}
           </Button>
+          {isDev && (
+            <p className="text-center text-xs text-zinc-500">
+              Demo local: owner@demo.com / password123
+            </p>
+          )}
         </form>
       </Card>
     </main>

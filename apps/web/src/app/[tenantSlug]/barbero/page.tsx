@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, Card, StatusBadge } from "@/components/ui";
 import { PanelHeader } from "@/components/panel-nav";
+import { StaffOfferingsEditor } from "@/components/staff-offerings-editor";
 import { fetchJson } from "@/lib/fetch-json";
 import { formatDateTime } from "@/lib/utils";
 
@@ -142,6 +143,22 @@ export default function BarberPanelPage({
       </div>
 
       {message && <p className="text-sm text-green-700">{message}</p>}
+
+      {profile?.staffProfile?.id && (
+        <Card>
+          <h2 className="text-xl font-semibold">Mis servicios y precios</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Si tardás más o menos que el valor base del local, ajustá la duración acá. La agenda
+            bloquea el tiempo real de cada servicio.
+          </p>
+          <div className="mt-4">
+            <StaffOfferingsEditor
+              tenantSlug={tenantSlug}
+              staffId={profile.staffProfile.id}
+            />
+          </div>
+        </Card>
+      )}
 
       <Card>
         <h2 className="text-xl font-semibold">Mi agenda</h2>

@@ -87,6 +87,19 @@ export function PublicBookingFlow({
     return catalog.staff.filter((member) => member.serviceIds.includes(serviceId));
   }, [catalog, serviceId]);
 
+  const selectedOffering = useMemo(() => {
+    if (!catalog || !staffId || !serviceId) {
+      return null;
+    }
+    const member = catalog.staff.find((row) => row.id === staffId);
+    return member?.offerings?.find((row) => row.serviceId === serviceId) ?? null;
+  }, [catalog, staffId, serviceId]);
+
+  const selectedService = useMemo(
+    () => catalog?.services.find((service) => service.id === serviceId),
+    [catalog, serviceId]
+  );
+
   useEffect(() => {
     if (availableStaff.some((member) => member.id === staffId)) {
       return;
@@ -261,10 +274,21 @@ export function PublicBookingFlow({
             <Select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
               {catalog.services.map((service) => (
                 <option key={service.id} value={service.id}>
-                  {service.name} ({service.durationMinutes} min) - {formatMoney(service.priceCents)}
+                  {service.name}
                 </option>
               ))}
             </Select>
+            {selectedOffering ? (
+              <p className="mt-1 text-sm text-zinc-600">
+                Con {availableStaff.find((m) => m.id === staffId)?.name ?? "este profesional"}:{" "}
+                {selectedOffering.durationMinutes} min · {formatMoney(selectedOffering.priceCents)}
+              </p>
+            ) : selectedService ? (
+              <p className="mt-1 text-sm text-zinc-500">
+                Desde {selectedService.durationMinutes} min ·{" "}
+                {formatMoney(selectedService.priceCents)}
+              </p>
+            ) : null}
           </div>
           <div>
             <Label>Profesional</Label>
@@ -286,6 +310,9 @@ export function PublicBookingFlow({
       <Card>
         <StepIndicator step={2} label="Horario disponible" />
         <p className="mt-2 text-sm text-zinc-500">
+          {selectedOffering
+            ? `Duración del turno: ${selectedOffering.durationMinutes} minutos. `
+            : ""}
           {availableSlots.length > 0
             ? `${availableSlots.length} horarios disponibles`
             : "Elegí otra fecha si no hay turnos"}

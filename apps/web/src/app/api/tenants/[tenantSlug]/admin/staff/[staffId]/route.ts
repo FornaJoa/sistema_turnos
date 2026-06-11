@@ -1,5 +1,6 @@
+import { assertServiceIdsForTenant, BookingValidationError, staffPatchSchema } from "@sistema-turnos/api";
 import { and, eq } from "drizzle-orm";
-import { db, staff, staffServices } from "@sistema-turnos/db";
+import { db, staff, staffServices, withDbTransaction } from "@sistema-turnos/db";
 import { NextResponse } from "next/server";
 import { findTenantBySlug } from "@/lib/tenant";
 import { requireTenantAdmin } from "@/lib/admin-auth";
@@ -22,7 +23,11 @@ export async function PATCH(
       return jsonError("Local no encontrado.", 404);
     }
 
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => null);
+    const parsed = staffPatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message ?? "Datos inválidos.", 400);
+    }
 
     const existing = await db.query.staff.findFirst({
       where: and(eq(staff.id, staffId), eq(staff.tenantId, tenant.id)),
@@ -35,19 +40,47 @@ export async function PATCH(
     const [updated] = await db
       .update(staff)
       .set({
-        name: body.name?.trim() ?? existing.name,
-        email: body.email?.trim() || null,
-        phone: body.phone?.trim() || null,
+        name: parsed.data.name?.trim() ?? existing.name,
+        email: parsed.data.email?.trim() || null,
+        phone: parsed.data.phone?.trim() || null,
         updatedAt: new Date(),
       })
       .where(eq(staff.id, staffId))
       .returning();
 
-    if (Array.isArray(body.serviceIds)) {
-      await db.delete(staffServices).where(eq(staffServices.staffId, staffId));
-      for (const serviceId of body.serviceIds) {
-        await db.insert(staffServices).values({ staffId, serviceId });
+    if (parsed.data.serviceIds) {
+      const serviceIds = parsed.data.serviceIds;
+      try {
+        await assertServiceIdsForTenant(tenant.id, serviceIds);
+      } catch (error) {
+        if (error instanceof BookingValidationError) {
+          return jsonError(error.message, 400);
+        }
+        throw error;
       }
+
+      await withDbTransaction(async (tx) => {
+        const existingLinks = await tx.query.staffServices.findMany({
+          where: eq(staffServices.staffId, staffId),
+        });
+        type StaffServiceLink = (typeof existingLinks)[number];
+        const existingByService = new Map(
+          existingLinks.map((link: StaffServiceLink) => [link.serviceId, link])
+        );
+        const selected = new Set(serviceIds);
+
+        for (const link of existingLinks) {
+          if (!selected.has(link.serviceId)) {
+            await tx.delete(staffServices).where(eq(staffServices.id, link.id));
+          }
+        }
+
+        for (const serviceId of serviceIds) {
+          if (!existingByService.has(serviceId)) {
+            await tx.insert(staffServices).values({ staffId, serviceId });
+          }
+        }
+      });
     }
 
     revalidateTenant(tenantSlug);

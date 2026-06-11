@@ -1,3 +1,4 @@
+import { servicePatchSchema } from "@sistema-turnos/api";
 import { and, eq } from "drizzle-orm";
 import { db, services, staffServices } from "@sistema-turnos/db";
 import { NextResponse } from "next/server";
@@ -22,7 +23,11 @@ export async function PATCH(
       return jsonError("Local no encontrado.", 404);
     }
 
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => null);
+    const parsed = servicePatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message ?? "Datos inválidos.", 400);
+    }
 
     const existing = await db.query.services.findFirst({
       where: and(eq(services.id, serviceId), eq(services.tenantId, tenant.id)),
@@ -33,15 +38,15 @@ export async function PATCH(
     }
 
     const priceCents =
-      body.pricePesos != null && body.pricePesos !== ""
-        ? Math.round(Number(body.pricePesos) * 100)
+      parsed.data.pricePesos != null
+        ? Math.round(parsed.data.pricePesos * 100)
         : existing.priceCents;
 
     const [updated] = await db
       .update(services)
       .set({
-        name: body.name?.trim() ?? existing.name,
-        durationMinutes: Number(body.durationMinutes) || existing.durationMinutes,
+        name: parsed.data.name?.trim() ?? existing.name,
+        durationMinutes: parsed.data.durationMinutes ?? existing.durationMinutes,
         priceCents,
         updatedAt: new Date(),
       })

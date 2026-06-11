@@ -32,6 +32,10 @@ function dedupeAvailableSlots(slots: Slot[]) {
   });
 }
 
+function isActionableStatus(status: string) {
+  return status === "pending" || status === "confirmed";
+}
+
 export default function ReceptionPage({
   params,
 }: {
@@ -158,7 +162,15 @@ export default function ReceptionPage({
     }
 
     setError("");
+    setMessage("Turno actualizado.");
     loadReception();
+  }
+
+  async function cancelAppointment(appointmentId: string, clientName: string) {
+    if (!confirm(`¿Cancelar el turno de ${clientName}?`)) {
+      return;
+    }
+    await updateStatus(appointmentId, "cancelled");
   }
 
   if (!tenantSlug || !clientReady || loading) {
@@ -195,6 +207,11 @@ export default function ReceptionPage({
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div className="space-y-3">
+            {summary.length === 0 && (
+              <p className="rounded-xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500">
+                No hay profesionales con disponibilidad para esta fecha.
+              </p>
+            )}
             {summary.map((row) => (
               <div key={row.staffId} className="rounded-xl border border-zinc-200 p-4">
                 <div className="flex items-center justify-between">
@@ -245,6 +262,10 @@ export default function ReceptionPage({
               <Label>Horario disponible</Label>
               {walkInSlotsLoading ? (
                 <LoadingGrid count={3} />
+              ) : walkInSlots.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-zinc-200 p-3 text-sm text-zinc-500">
+                  No hay horarios libres para esta combinación de profesional y servicio.
+                </p>
               ) : (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {walkInSlots.map((slot) => (
@@ -289,6 +310,11 @@ export default function ReceptionPage({
         <h2 className="text-xl font-semibold">Agenda del día</h2>
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-4 space-y-3">
+          {appointments.length === 0 && (
+            <p className="rounded-xl border border-dashed border-zinc-200 p-6 text-center text-sm text-zinc-500">
+              No hay turnos agendados para este día.
+            </p>
+          )}
           {appointments.map((appointment) => (
             <div
               key={appointment.id}
@@ -301,14 +327,31 @@ export default function ReceptionPage({
                   {formatDateTime(appointment.startAt, catalog.tenant.timezone)}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={appointment.status} />
-                <Button variant="secondary" onClick={() => updateStatus(appointment.id, "confirmed")}>
-                  Confirmar
-                </Button>
-                <Button variant="danger" onClick={() => updateStatus(appointment.id, "cancelled")}>
-                  Cancelar
-                </Button>
+                {appointment.status === "pending" && (
+                  <Button variant="secondary" onClick={() => updateStatus(appointment.id, "confirmed")}>
+                    Confirmar
+                  </Button>
+                )}
+                {appointment.status === "confirmed" && (
+                  <>
+                    <Button variant="secondary" onClick={() => updateStatus(appointment.id, "completed")}>
+                      Completar
+                    </Button>
+                    <Button variant="secondary" onClick={() => updateStatus(appointment.id, "no_show")}>
+                      No asistió
+                    </Button>
+                  </>
+                )}
+                {isActionableStatus(appointment.status) && (
+                  <Button
+                    variant="danger"
+                    onClick={() => cancelAppointment(appointment.id, appointment.clientName)}
+                  >
+                    Cancelar
+                  </Button>
+                )}
               </div>
             </div>
           ))}

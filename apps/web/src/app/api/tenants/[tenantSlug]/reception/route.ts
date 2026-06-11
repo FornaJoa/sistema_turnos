@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { getTenantCatalogForApi } from "@/lib/catalog";
 import { requireTenantReception } from "@/lib/admin-auth";
 import { handleRouteError, jsonError } from "@/lib/api-route";
+import { getTodayDateString } from "@/lib/utils";
 
 export async function GET(
   request: Request,
@@ -20,16 +21,16 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
-    const walkInStaffId = searchParams.get("staffId");
-    const walkInServiceId = searchParams.get("serviceId");
-
     const catalog = await getTenantCatalogForApi(tenantSlug);
     if (!catalog) {
       return jsonError("Local no encontrado.", 404);
     }
 
     const { id: tenantId, timezone } = catalog.tenant;
+    const date = searchParams.get("date") ?? getTodayDateString(timezone);
+    const walkInStaffId = searchParams.get("staffId");
+    const walkInServiceId = searchParams.get("serviceId");
+
     const dayStart = fromZonedTime(`${date}T00:00:00`, timezone);
     const dayEnd = addMinutes(dayStart, 24 * 60);
 

@@ -16,6 +16,7 @@ import {
   schedules,
   services,
   staff,
+  staffServices,
   tenantSettings,
 } from "@sistema-turnos/db";
 import {
@@ -25,6 +26,7 @@ import {
   invalidateAvailabilityCache,
   setCachedAvailability,
 } from "../cache/redis";
+import { getStaffServiceOffering } from "../catalog/staff-offering";
 
 export interface TimeSlot {
   startAt: string;
@@ -319,15 +321,12 @@ export async function getAvailableSlots(
     return cached;
   }
 
-  const [service, dayContext] = await Promise.all([
-    db.query.services.findFirst({
-      where: and(eq(services.id, options.serviceId), eq(services.tenantId, options.tenantId)),
-      columns: { id: true, durationMinutes: true },
-    }),
+  const [offering, dayContext] = await Promise.all([
+    getStaffServiceOffering(options.tenantId, options.staffId, options.serviceId),
     loadDayContext(options.tenantId, [options.staffId], options.date, options.timezone),
   ]);
 
-  if (!service) {
+  if (!offering) {
     return [];
   }
 
@@ -345,7 +344,7 @@ export async function getAvailableSlots(
     slots = computeSlots({
       date: options.date,
       timezone: options.timezone,
-      durationMinutes: service.durationMinutes,
+      durationMinutes: offering.durationMinutes,
       slotIntervalMinutes: interval,
       daySchedules: dayContext.schedulesByStaff.get(options.staffId) ?? [],
       exceptions: dayContext.exceptions,
@@ -401,6 +400,19 @@ export async function getStaffAvailabilitySummary(
   const dayContext = await loadDayContext(tenantId, staffIds, date, timezone);
   const interval = Math.max(1, dayContext.settings?.slotIntervalMinutes ?? 15);
 
+  const staffLinks =
+    staffIds.length > 0
+      ? await db.query.staffServices.findMany({
+          where: and(
+            inArray(staffServices.staffId, staffIds),
+            eq(staffServices.serviceId, defaultService.id)
+          ),
+          columns: { staffId: true, durationMinutes: true, priceCents: true },
+        })
+      : [];
+
+  const linkByStaff = new Map(staffLinks.map((link) => [link.staffId, link]));
+
   const perStaff = staffMembers.map((member) => {
     try {
       const blockedRanges = [
@@ -408,10 +420,13 @@ export async function getStaffAvailabilitySummary(
         ...(dayContext.holdsByStaff.get(member.id) ?? []),
       ];
 
+      const link = linkByStaff.get(member.id);
+      const durationMinutes = link?.durationMinutes ?? defaultService.durationMinutes;
+
       const slots = computeSlots({
         date,
         timezone,
-        durationMinutes: defaultService.durationMinutes,
+        durationMinutes,
         slotIntervalMinutes: interval,
         daySchedules: dayContext.schedulesByStaff.get(member.id) ?? [],
         exceptions: dayContext.exceptions,
@@ -471,7 +486,14 @@ export async function clearAvailabilityCacheForSlot(
 ): Promise<void> {
   const zoned = toZonedTime(startAt, timezone);
   const dateKey = format(startOfDay(zoned), "yyyy-MM-dd");
-  await invalidateAvailabilityCache(tenantId, staffId, dateKey, serviceId);
+
+  const links = await db.query.staffServices.findMany({
+    where: eq(staffServices.staffId, staffId),
+    columns: { serviceId: true },
+  });
+
+  const serviceIds = [...new Set([serviceId, ...links.map((link) => link.serviceId)])];
+  await invalidateAvailabilityCache(tenantId, staffId, dateKey, undefined, serviceIds);
 }
 
 export { overlaps };

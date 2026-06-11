@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, notifications, appointments, tenants } from "@sistema-turnos/db";
 import { sendWhatsAppNotification } from "./whatsapp";
 
@@ -240,6 +240,18 @@ export async function sendAppointmentNotifications(
   await dispatchAppointmentNotifications(appointment, event);
 }
 
+async function wasReminderSent(appointmentId: string) {
+  const existing = await db.query.notifications.findFirst({
+    where: and(
+      eq(notifications.appointmentId, appointmentId),
+      eq(notifications.template, "appointment_reminder"),
+      eq(notifications.status, "sent")
+    ),
+    columns: { id: true },
+  });
+  return Boolean(existing);
+}
+
 export async function sendReminderNotifications() {
   const now = new Date();
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -256,11 +268,12 @@ export async function sendReminderNotifications() {
     },
   });
 
-  await Promise.all(
-    upcoming.map((appointment) =>
-      dispatchAppointmentNotifications(appointment, "appointment_reminder")
-    )
-  );
+  for (const appointment of upcoming) {
+    if (await wasReminderSent(appointment.id)) {
+      continue;
+    }
+    await dispatchAppointmentNotifications(appointment, "appointment_reminder");
+  }
 }
 
 export async function getTenantBySlug(slug: string) {

@@ -1,9 +1,18 @@
-import { verifyCredentials } from "@sistema-turnos/api";
+import { verifyCredentials, rateLimit } from "@sistema-turnos/api";
 import { NextResponse } from "next/server";
 import { setSessionCookie } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+    const limit = await rateLimit(`login:${ip}`, 10, 60);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Demasiados intentos. Esperá un minuto e intentá de nuevo." },
+        { status: 429 }
+      );
+    }
+
     let body: unknown;
     try {
       body = await request.json();

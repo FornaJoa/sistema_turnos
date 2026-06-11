@@ -4,9 +4,13 @@ import { findTenantBySlug } from "@/lib/tenant";
 import { requireTenantOwner } from "@/lib/admin-auth";
 import { handleRouteError, jsonError } from "@/lib/api-route";
 
-function parseDateParam(value: string | null, fallback: Date) {
+function parseDateParam(value: string | null, fallback: Date, endOfDay = false) {
   if (!value) {
     return fallback;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parsed = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00"}`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
@@ -33,7 +37,7 @@ export async function GET(
       searchParams.get("from"),
       new Date(Date.now() - 30 * 86400000)
     );
-    const to = parseDateParam(searchParams.get("to"), new Date());
+    const to = parseDateParam(searchParams.get("to"), new Date(), true);
 
     if (!from || !to) {
       return jsonError("Rango de fechas inválido.", 400);
@@ -43,6 +47,7 @@ export async function GET(
       tenantId: tenant.id,
       from,
       to,
+      timezone: tenant.timezone,
     });
 
     if (searchParams.get("format") === "csv") {

@@ -3,7 +3,11 @@ import {
   getStaffAvailabilitySummary,
   updateAppointmentStatus,
   BookingConflictError,
+  BookingValidationError,
+  AppointmentStatusError,
   getMembershipForTenant,
+  walkInSchema,
+  appointmentStatusSchema,
 } from "@sistema-turnos/api";
 import { and, eq, gte, lt } from "drizzle-orm";
 import { addMinutes } from "date-fns";
@@ -12,7 +16,9 @@ import { db, appointments, staff } from "@sistema-turnos/db";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getTenantCatalogForApi } from "@/lib/catalog";
+import { requireTenantReception } from "@/lib/admin-auth";
 import { handleRouteError, jsonError } from "@/lib/api-route";
+import { getTodayDateString } from "@/lib/utils";
 
 export async function GET(
   request: Request,
@@ -20,25 +26,31 @@ export async function GET(
 ) {
   try {
     const { tenantSlug } = await params;
+    const auth = await requireTenantReception(tenantSlug);
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const catalog = await getTenantCatalogForApi(tenantSlug);
     if (!catalog) {
       return jsonError("Local no encontrado.", 404);
     }
 
     const { searchParams } = new URL(request.url);
+    const timezone = catalog.tenant.timezone;
     const date = searchParams.get("date");
 
     if (date) {
       const summary = await getStaffAvailabilitySummary(
         catalog.tenant.id,
-        catalog.tenant.timezone,
+        timezone,
         date
       );
       return NextResponse.json({ summary });
     }
 
-    const day = searchParams.get("day") ?? new Date().toISOString().slice(0, 10);
-    const dayStart = fromZonedTime(`${day}T00:00:00`, catalog.tenant.timezone);
+    const day = searchParams.get("day") ?? getTodayDateString(timezone);
+    const dayStart = fromZonedTime(`${day}T00:00:00`, timezone);
     const dayEnd = addMinutes(dayStart, 24 * 60);
 
     const dayAppointments = await db.query.appointments.findMany({
@@ -70,23 +82,30 @@ export async function POST(
       return jsonError("Debés iniciar sesión.", 401);
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    const parsed = walkInSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message ?? "Datos inválidos.", 400);
+    }
 
     try {
       const appointment = await createWalkInAppointment({
         tenantSlug,
-        staffId: body.staffId,
-        serviceId: body.serviceId,
-        startAt: body.startAt,
-        clientName: body.clientName,
-        clientEmail: body.clientEmail,
-        clientPhone: body.clientPhone,
-        notes: body.notes,
+        staffId: parsed.data.staffId,
+        serviceId: parsed.data.serviceId,
+        startAt: parsed.data.startAt,
+        clientName: parsed.data.clientName,
+        clientEmail: parsed.data.clientEmail || undefined,
+        clientPhone: parsed.data.clientPhone,
+        notes: parsed.data.notes,
         createdByUserId: session?.user.id,
       });
 
       return NextResponse.json({ appointment });
     } catch (error) {
+      if (error instanceof BookingValidationError) {
+        return jsonError(error.message, 400);
+      }
       if (error instanceof BookingConflictError) {
         return NextResponse.json({ error: error.message }, { status: 409 });
       }
@@ -110,7 +129,12 @@ export async function PATCH(
       return jsonError("Debés iniciar sesión.", 401);
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    const parsed = appointmentStatusSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message ?? "Datos inválidos.", 400);
+    }
+
     const catalog = await getTenantCatalogForApi(tenantSlug);
     if (!catalog) {
       return jsonError("Local no encontrado.", 404);
@@ -118,7 +142,7 @@ export async function PATCH(
 
     const appointment = await db.query.appointments.findFirst({
       where: and(
-        eq(appointments.id, body.appointmentId),
+        eq(appointments.id, parsed.data.appointmentId),
         eq(appointments.tenantId, catalog.tenant.id)
       ),
     });
@@ -144,13 +168,16 @@ export async function PATCH(
     }
 
     const updated = await updateAppointmentStatus(
-      body.appointmentId,
-      body.status,
+      parsed.data.appointmentId,
+      parsed.data.status,
       session?.user.id
     );
 
     return NextResponse.json({ appointment: updated });
   } catch (error) {
+    if (error instanceof AppointmentStatusError) {
+      return jsonError(error.message, 409);
+    }
     return handleRouteError(error, "appointments/patch");
   }
 }
