@@ -292,13 +292,55 @@ export function PublicBookingFlow({
           </div>
           <div>
             <Label>Profesional</Label>
-            <Select value={staffId} onChange={(e) => setStaffId(e.target.value)}>
-              {availableStaff.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </Select>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              {availableStaff.map((member) => {
+                const selected = member.id === staffId;
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => setStaffId(member.id)}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      selected
+                        ? "border-[var(--brand)] bg-[var(--brand)]/5 ring-2 ring-[var(--brand)]/30"
+                        : "border-zinc-200 hover:border-zinc-300"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {member.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={member.avatarUrl}
+                          alt={member.name}
+                          className="h-14 w-14 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-semibold text-zinc-600">
+                          {member.name
+                            .split(" ")
+                            .map((part) => part[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-zinc-900">{member.name}</p>
+                        {member.bio && (
+                          <p className="mt-1 line-clamp-2 text-sm text-zinc-600">{member.bio}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-[var(--brand)]">
+                          {member.instagramUrl && (
+                            <span>Instagram</span>
+                          )}
+                          {member.tiktokUrl && <span>TikTok</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div>
             <Label>Fecha</Label>

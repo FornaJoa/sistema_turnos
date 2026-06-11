@@ -12,4 +12,5 @@ export * from "./catalog/service";
 export * from "./catalog/staff-offering";
 export * from "./schedules/service";
 export * from "./schedules/exceptions";
+export * from "./staff/profile";
 export * from "./schemas/booking";

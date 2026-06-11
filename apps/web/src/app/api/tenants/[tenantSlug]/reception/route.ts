@@ -21,7 +21,7 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const catalog = await getTenantCatalogForApi(tenantSlug);
+    const catalog = await getTenantCatalogForApi(tenantSlug, true);
     if (!catalog) {
       return jsonError("Local no encontrado.", 404);
     }

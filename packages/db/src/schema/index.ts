@@ -121,6 +121,8 @@ export const staff = pgTable(
     phone: text("phone"),
     bio: text("bio"),
     avatarUrl: text("avatar_url"),
+    instagramUrl: text("instagram_url"),
+    tiktokUrl: text("tiktok_url"),
     isActive: boolean("is_active").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

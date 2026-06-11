@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const catalog = await getTenantCatalogForApi(tenantSlug);
+    const catalog = await getTenantCatalogForApi(tenantSlug, true);
     if (!catalog) {
       return jsonError("Local no encontrado.", 404);
     }

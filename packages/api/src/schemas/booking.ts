@@ -63,6 +63,13 @@ export const publicCancelSchema = z.object({
   action: z.literal("cancel"),
 });
 
+export const staffProfilePatchSchema = z.object({
+  bio: z.string().max(500).nullable().optional(),
+  avatarUrl: z.string().max(2048).nullable().optional(),
+  instagramUrl: z.string().max(200).nullable().optional(),
+  tiktokUrl: z.string().max(200).nullable().optional(),
+});
+
 export const staffCreateSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio.").max(200),
   email: z.union([z.string().email(), z.literal("")]).optional(),

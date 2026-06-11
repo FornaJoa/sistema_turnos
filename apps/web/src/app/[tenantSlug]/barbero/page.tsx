@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, StatusBadge } from "@/components/ui";
 import { PanelHeader } from "@/components/panel-nav";
 import { StaffOfferingsEditor } from "@/components/staff-offerings-editor";
+import { StaffProfileEditor } from "@/components/staff-profile-editor";
 import { StaffSchedulesEditor } from "@/components/staff-schedules-editor";
 import { StaffScheduleExceptionsEditor } from "@/components/staff-schedule-exceptions-editor";
 import { fetchJson } from "@/lib/fetch-json";
@@ -148,6 +149,19 @@ export default function BarberPanelPage({
 
       {profile?.staffProfile?.id && (
         <>
+          <Card>
+            <h2 className="text-xl font-semibold">Mi perfil público</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Foto, bio y redes que ven los clientes al reservar.
+            </p>
+            <div className="mt-4">
+              <StaffProfileEditor
+                tenantSlug={tenantSlug}
+                staffId={profile.staffProfile.id}
+              />
+            </div>
+          </Card>
+
           <Card>
             <h2 className="text-xl font-semibold">Mis servicios y precios</h2>
             <p className="mt-1 text-sm text-zinc-600">

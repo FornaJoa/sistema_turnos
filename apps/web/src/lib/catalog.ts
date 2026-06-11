@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 
 export type TenantCatalog = Awaited<ReturnType<typeof fetchTenantCatalog>>;
 
-async function loadTenantWithCatalog(tenantSlug: string) {
+async function loadTenantWithCatalog(tenantSlug: string, includePrivate = false) {
   const tenant = await db.query.tenants.findFirst({
     where: and(eq(tenants.slug, tenantSlug), eq(tenants.isActive, true)),
     with: { settings: true },
@@ -16,7 +16,7 @@ async function loadTenantWithCatalog(tenantSlug: string) {
     return null;
   }
 
-  const catalog = await getTenantCatalog(tenant.id);
+  const catalog = await getTenantCatalog(tenant.id, includePrivate);
 
   return {
     tenant: {
@@ -40,8 +40,11 @@ export async function fetchTenantCatalog(tenantSlug: string) {
 }
 
 /** Para route handlers: nunca devuelve HTML de notFound(). */
-export async function getTenantCatalogForApi(tenantSlug: string) {
-  return loadTenantWithCatalog(tenantSlug);
+export async function getTenantCatalogForApi(
+  tenantSlug: string,
+  includePrivate = false
+) {
+  return loadTenantWithCatalog(tenantSlug, includePrivate);
 }
 
 export function getCachedTenantCatalog(tenantSlug: string) {

@@ -10,6 +10,7 @@ export interface AnalyticsFilters {
 
 export async function getOwnerAnalytics(filters: AnalyticsFilters) {
   const { tenantId, from, to, timezone } = filters;
+  const localHour = sql`extract(hour from timezone(${timezone}, ${appointments.startAt}))`;
 
   const [statusCounts, byStaff, byService, peakHours, clients] = await Promise.all([
     db
@@ -65,7 +66,7 @@ export async function getOwnerAnalytics(filters: AnalyticsFilters) {
 
     db
       .select({
-        hour: sql<number>`extract(hour from timezone(${timezone}, ${appointments.startAt}))::int`,
+        hour: sql<number>`(${localHour})::int`,
         total: sql<number>`count(*)::int`,
       })
       .from(appointments)
@@ -76,7 +77,7 @@ export async function getOwnerAnalytics(filters: AnalyticsFilters) {
           lte(appointments.startAt, to)
         )
       )
-      .groupBy(sql`extract(hour from timezone(${timezone}, ${appointments.startAt}))`)
+      .groupBy(localHour)
       .orderBy(sql`count(*) desc`),
 
     db

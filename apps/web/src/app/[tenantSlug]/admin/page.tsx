@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { PanelHeader } from "@/components/panel-nav";
 import { StaffOfferingsEditor } from "@/components/staff-offerings-editor";
+import { StaffProfileEditor } from "@/components/staff-profile-editor";
 import { StaffSchedulesEditor } from "@/components/staff-schedules-editor";
 import { StaffScheduleExceptionsEditor } from "@/components/staff-schedule-exceptions-editor";
 import { fetchJson } from "@/lib/fetch-json";
@@ -299,6 +300,10 @@ export default function AdminPage({
                       <Button type="button" variant="secondary" onClick={() => setEditingStaffId(null)}>
                         Cancelar
                       </Button>
+                    </div>
+                    <div className="mt-4 border-t border-zinc-100 pt-4">
+                      <h4 className="mb-2 text-sm font-semibold text-zinc-800">Perfil público</h4>
+                      <StaffProfileEditor tenantSlug={tenantSlug} staffId={member.id} />
                     </div>
                     <div className="mt-4 border-t border-zinc-100 pt-4">
                       <h4 className="mb-2 text-sm font-semibold text-zinc-800">Servicios que realiza</h4>

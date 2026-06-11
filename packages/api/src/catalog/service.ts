@@ -1,8 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, services, staff, staffServices } from "@sistema-turnos/db";
 import { listStaffServiceOfferings, resolveStaffServiceTerms } from "./staff-offering";
+import { mapStaffCatalogProfile } from "../staff/profile";
 
-export async function getTenantCatalog(tenantId: string) {
+export async function getTenantCatalog(tenantId: string, includePrivate = false) {
   const [serviceList, staffList] = await Promise.all([
     db.query.services.findMany({
       where: and(eq(services.tenantId, tenantId), eq(services.isActive, true)),
@@ -59,11 +60,10 @@ export async function getTenantCatalog(tenantId: string) {
         })
         .filter((offering): offering is NonNullable<typeof offering> => offering != null);
 
-      return {
-        ...member,
-        serviceIds: offerings.map((offering) => offering!.serviceId),
+      return mapStaffCatalogProfile(member, {
+        serviceIds: offerings.map((offering) => offering.serviceId),
         offerings,
-      };
+      }, includePrivate);
     }),
   };
 }
