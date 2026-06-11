@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Button, Card, StatusBadge } from "@/components/ui";
 import { PanelHeader } from "@/components/panel-nav";
 import { StaffOfferingsEditor } from "@/components/staff-offerings-editor";
+import { StaffSchedulesEditor } from "@/components/staff-schedules-editor";
+import { StaffScheduleExceptionsEditor } from "@/components/staff-schedule-exceptions-editor";
 import { fetchJson } from "@/lib/fetch-json";
 import { formatDateTime } from "@/lib/utils";
 
@@ -145,19 +147,40 @@ export default function BarberPanelPage({
       {message && <p className="text-sm text-green-700">{message}</p>}
 
       {profile?.staffProfile?.id && (
-        <Card>
-          <h2 className="text-xl font-semibold">Mis servicios y precios</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Si tardás más o menos que el valor base del local, ajustá la duración acá. La agenda
-            bloquea el tiempo real de cada servicio.
-          </p>
-          <div className="mt-4">
-            <StaffOfferingsEditor
-              tenantSlug={tenantSlug}
-              staffId={profile.staffProfile.id}
-            />
-          </div>
-        </Card>
+        <>
+          <Card>
+            <h2 className="text-xl font-semibold">Mis servicios y precios</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Si tardás más o menos que el valor base del local, ajustá la duración acá. La agenda
+              bloquea el tiempo real de cada servicio.
+            </p>
+            <div className="mt-4">
+              <StaffOfferingsEditor
+                tenantSlug={tenantSlug}
+                staffId={profile.staffProfile.id}
+              />
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="text-xl font-semibold">Mis horarios</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Actualizá tu disponibilidad semanal y avisá feriados o días especiales.
+            </p>
+            <div className="mt-4 space-y-6">
+              <StaffSchedulesEditor
+                tenantSlug={tenantSlug}
+                staffId={profile.staffProfile.id}
+                apiScope="staff"
+              />
+              <StaffScheduleExceptionsEditor
+                tenantSlug={tenantSlug}
+                staffId={profile.staffProfile.id}
+                apiScope="staff"
+              />
+            </div>
+          </Card>
+        </>
       )}
 
       <Card>

@@ -1,4 +1,4 @@
-import { verifyCredentials, rateLimit } from "@sistema-turnos/api";
+import { verifyCredentials, rateLimit, loginBodySchema } from "@sistema-turnos/api";
 import { NextResponse } from "next/server";
 import { setSessionCookie } from "@/lib/auth";
 
@@ -20,10 +20,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "JSON inválido en la solicitud." }, { status: 400 });
     }
 
-    const email = String((body as { email?: string }).email ?? "");
-    const password = String((body as { password?: string }).password ?? "");
+    const parsed = loginBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message ?? "Datos inválidos." },
+        { status: 400 }
+      );
+    }
 
-    const session = await verifyCredentials(email, password);
+    const session = await verifyCredentials(parsed.data.email, parsed.data.password);
     if (!session) {
       return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
     }

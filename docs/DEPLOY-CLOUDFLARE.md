@@ -245,3 +245,64 @@ Asegurate de que `APP_URL` coincida exactamente con la URL pública (https, sin 
 - [ ] Secretos configurados en Cloudflare (no en el repo)
 - [ ] `APP_URL` apunta al dominio final
 - [ ] Cron de recordatorios programado (opcional)
+
+---
+
+## Parte 7 — Operaciones post-audit (manual)
+
+Después de cambios de schema o constraints en Neon:
+
+```powershell
+cd f:\repo\sistema_turnos
+npm run db:push
+npm run db:apply-constraints
+```
+
+Verificá en Neon que existan los constraints `appointments_no_overlap` y `appointment_holds_no_overlap`.
+
+### Deploy desde tu PC
+
+```powershell
+npx wrangler login
+npm run cf:deploy:ci
+```
+
+Si falla con `Authentication error [code: 10000]`, revisá que la sesión de Wrangler esté activa o agregá `account_id` en `apps/web/wrangler.jsonc`.
+
+### Sincronizar rama de producción
+
+Si Cloudflare despliega desde `main`:
+
+```powershell
+git checkout main
+git merge develop
+git push origin main
+```
+
+### Super-admin del demo
+
+En el SQL editor de Neon:
+
+```sql
+UPDATE users SET is_platform_admin = false WHERE email = 'owner@demo.com';
+SELECT email, is_platform_admin FROM users WHERE email LIKE '%demo%';
+```
+
+### Cron de recordatorios (prod)
+
+Programá un GET diario a:
+
+```
+https://sistema-turnos.reeaper0.workers.dev/api/cron/reminders
+Authorization: Bearer TU_CRON_SECRET
+```
+
+### Smoke test local
+
+```powershell
+npm run test
+npm run build
+npm run dev
+```
+
+Probar: `/barberia-demo`, login, admin horarios, barbero horarios, owner analytics.

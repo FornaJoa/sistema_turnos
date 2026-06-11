@@ -37,6 +37,32 @@ export const schedulesPatchSchema = z.object({
   windows: z.array(scheduleWindowSchema),
 });
 
+export const scheduleExceptionSchema = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
+    isClosed: z.boolean(),
+    startTime: z.string().regex(/^\d{1,2}:\d{2}/).nullable().optional(),
+    endTime: z.string().regex(/^\d{1,2}:\d{2}/).nullable().optional(),
+    reason: z.string().max(200).nullable().optional(),
+  })
+  .refine(
+    (value) => value.isClosed || (Boolean(value.startTime) && Boolean(value.endTime)),
+    { message: "Horario especial requiere inicio y fin." }
+  );
+
+export const scheduleExceptionsPatchSchema = z.object({
+  exceptions: z.array(scheduleExceptionSchema),
+});
+
+export const loginBodySchema = z.object({
+  email: z.string().trim().email("Email inválido."),
+  password: z.string().min(1, "Contraseña obligatoria.").max(200),
+});
+
+export const publicCancelSchema = z.object({
+  action: z.literal("cancel"),
+});
+
 export const staffCreateSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio.").max(200),
   email: z.union([z.string().email(), z.literal("")]).optional(),

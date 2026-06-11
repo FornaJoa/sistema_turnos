@@ -6,6 +6,7 @@ import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { PanelHeader } from "@/components/panel-nav";
 import { StaffOfferingsEditor } from "@/components/staff-offerings-editor";
 import { StaffSchedulesEditor } from "@/components/staff-schedules-editor";
+import { StaffScheduleExceptionsEditor } from "@/components/staff-schedule-exceptions-editor";
 import { fetchJson } from "@/lib/fetch-json";
 import { formatMoney } from "@/lib/utils";
 
@@ -331,6 +332,12 @@ export default function AdminPage({
                     <div className="mt-4 border-t border-zinc-100 pt-4">
                       <h4 className="mb-2 text-sm font-semibold text-zinc-800">Horarios semanales</h4>
                       <StaffSchedulesEditor tenantSlug={tenantSlug} staffId={member.id} />
+                    </div>
+                    <div className="mt-4 border-t border-zinc-100 pt-4">
+                      <h4 className="mb-2 text-sm font-semibold text-zinc-800">
+                        Feriados y excepciones
+                      </h4>
+                      <StaffScheduleExceptionsEditor tenantSlug={tenantSlug} staffId={member.id} />
                     </div>
                   </div>
                 ) : (

@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Label } from "@/components/ui";
 import { fetchJson } from "@/lib/fetch-json";
 
 const DAY_LABELS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
-type DayRow = {
+type ScheduleWindow = {
+  key: string;
   dayOfWeek: number;
-  enabled: boolean;
   startTime: string;
   endTime: string;
 };
@@ -17,27 +17,42 @@ function toInputTime(value: string) {
   return value.slice(0, 5);
 }
 
-function defaultRows(): DayRow[] {
-  return Array.from({ length: 7 }, (_, dayOfWeek) => ({
+function newWindow(dayOfWeek: number): ScheduleWindow {
+  return {
+    key: `${dayOfWeek}-${Math.random().toString(36).slice(2, 8)}`,
     dayOfWeek,
-    enabled: dayOfWeek >= 1 && dayOfWeek <= 5,
     startTime: "09:00",
     endTime: "18:00",
-  }));
+  };
 }
 
 export function StaffSchedulesEditor({
   tenantSlug,
   staffId,
+  apiScope = "admin",
 }: {
   tenantSlug: string;
   staffId: string;
+  apiScope?: "admin" | "staff";
 }) {
-  const [rows, setRows] = useState<DayRow[]>(defaultRows);
+  const [windows, setWindows] = useState<ScheduleWindow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const apiBase =
+    apiScope === "admin"
+      ? `/api/tenants/${tenantSlug}/admin/staff/${staffId}/schedules`
+      : `/api/tenants/${tenantSlug}/staff/${staffId}/schedules`;
+
+  const windowsByDay = useMemo(() => {
+    const grouped = new Map<number, ScheduleWindow[]>();
+    for (const day of [0, 1, 2, 3, 4, 5, 6]) {
+      grouped.set(day, windows.filter((window) => window.dayOfWeek === day));
+    }
+    return grouped;
+  }, [windows]);
 
   useEffect(() => {
     if (!tenantSlug || !staffId) {
@@ -46,7 +61,7 @@ export function StaffSchedulesEditor({
 
     setLoading(true);
     fetchJson<{ schedules: Array<{ dayOfWeek: number; startTime: string; endTime: string }> }>(
-      `/api/tenants/${tenantSlug}/admin/staff/${staffId}/schedules`
+      apiBase
     ).then((result) => {
       if (!result.ok) {
         setError(result.error);
@@ -54,43 +69,35 @@ export function StaffSchedulesEditor({
         return;
       }
 
-      const next = defaultRows().map((row) => ({ ...row, enabled: false }));
-      for (const schedule of result.data.schedules) {
-        const row = next.find((item) => item.dayOfWeek === schedule.dayOfWeek);
-        if (row) {
-          row.enabled = true;
-          row.startTime = toInputTime(schedule.startTime);
-          row.endTime = toInputTime(schedule.endTime);
-        }
-      }
-
-      setRows(next);
+      setWindows(
+        result.data.schedules.map((schedule) => ({
+          key: `${schedule.dayOfWeek}-${schedule.startTime}-${schedule.endTime}`,
+          dayOfWeek: schedule.dayOfWeek,
+          startTime: toInputTime(schedule.startTime),
+          endTime: toInputTime(schedule.endTime),
+        }))
+      );
       setError("");
       setLoading(false);
     });
-  }, [tenantSlug, staffId]);
+  }, [tenantSlug, staffId, apiBase]);
 
   async function saveSchedules() {
     setSaving(true);
     setError("");
     setMessage("");
 
-    const windows = rows
-      .filter((row) => row.enabled)
-      .map((row) => ({
-        dayOfWeek: row.dayOfWeek,
-        startTime: row.startTime,
-        endTime: row.endTime,
-      }));
+    const payload = windows.map((window) => ({
+      dayOfWeek: window.dayOfWeek,
+      startTime: window.startTime,
+      endTime: window.endTime,
+    }));
 
-    const result = await fetchJson(
-      `/api/tenants/${tenantSlug}/admin/staff/${staffId}/schedules`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ windows }),
-      }
-    );
+    const result = await fetchJson(apiBase, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ windows: payload }),
+    });
 
     setSaving(false);
 
@@ -102,6 +109,16 @@ export function StaffSchedulesEditor({
     setMessage("Horarios semanales guardados.");
   }
 
+  function updateWindow(key: string, patch: Partial<ScheduleWindow>) {
+    setWindows((current) =>
+      current.map((window) => (window.key === key ? { ...window, ...patch } : window))
+    );
+  }
+
+  function removeWindow(key: string) {
+    setWindows((current) => current.filter((window) => window.key !== key));
+  }
+
   if (loading) {
     return <p className="text-sm text-zinc-500">Cargando horarios...</p>;
   }
@@ -109,64 +126,49 @@ export function StaffSchedulesEditor({
   return (
     <div className="space-y-3">
       <p className="text-sm text-zinc-600">
-        Definí en qué días y franjas horarias atiende este profesional.
+        Podés definir varias franjas por día (por ejemplo mañana y tarde).
       </p>
-      {rows.map((row) => (
-        <div key={row.dayOfWeek} className="rounded-xl border border-zinc-200 p-3">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={row.enabled}
-              onChange={(event) =>
-                setRows((current) =>
-                  current.map((item) =>
-                    item.dayOfWeek === row.dayOfWeek
-                      ? { ...item, enabled: event.target.checked }
-                      : item
-                  )
-                )
-              }
-            />
-            <span className="font-medium">{DAY_LABELS[row.dayOfWeek]}</span>
-          </label>
-          {row.enabled && (
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <div>
-                <Label>Desde</Label>
-                <Input
-                  type="time"
-                  value={row.startTime}
-                  onChange={(event) =>
-                    setRows((current) =>
-                      current.map((item) =>
-                        item.dayOfWeek === row.dayOfWeek
-                          ? { ...item, startTime: event.target.value }
-                          : item
-                      )
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <Label>Hasta</Label>
-                <Input
-                  type="time"
-                  value={row.endTime}
-                  onChange={(event) =>
-                    setRows((current) =>
-                      current.map((item) =>
-                        item.dayOfWeek === row.dayOfWeek
-                          ? { ...item, endTime: event.target.value }
-                          : item
-                      )
-                    )
-                  }
-                />
-              </div>
+      {[1, 2, 3, 4, 5, 6, 0].map((dayOfWeek) => {
+        const dayWindows = windowsByDay.get(dayOfWeek) ?? [];
+        return (
+          <div key={dayOfWeek} className="rounded-xl border border-zinc-200 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="font-medium">{DAY_LABELS[dayOfWeek]}</span>
+              <Button type="button" variant="ghost" onClick={() => setWindows((c) => [...c, newWindow(dayOfWeek)])}>
+                + Franja
+              </Button>
             </div>
-          )}
-        </div>
-      ))}
+            {dayWindows.length === 0 && (
+              <p className="text-sm text-zinc-500">Sin horario este día.</p>
+            )}
+            {dayWindows.map((window) => (
+              <div key={window.key} className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <div>
+                  <Label>Desde</Label>
+                  <Input
+                    type="time"
+                    value={window.startTime}
+                    onChange={(event) => updateWindow(window.key, { startTime: event.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Hasta</Label>
+                  <Input
+                    type="time"
+                    value={window.endTime}
+                    onChange={(event) => updateWindow(window.key, { endTime: event.target.value })}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button type="button" variant="danger" onClick={() => removeWindow(window.key)}>
+                    Quitar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
       {error && <p className="text-sm text-red-600">{error}</p>}
       {message && <p className="text-sm text-green-700">{message}</p>}
       <Button type="button" onClick={saveSchedules} disabled={saving}>

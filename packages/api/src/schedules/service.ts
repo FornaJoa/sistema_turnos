@@ -7,6 +7,19 @@ export type ScheduleWindow = {
   endTime: string;
 };
 
+export function validateScheduleWindows(windows: ScheduleWindow[]) {
+  for (const window of windows) {
+    if (window.dayOfWeek < 0 || window.dayOfWeek > 6) {
+      throw new Error("Invalid dayOfWeek");
+    }
+    const start = normalizeTime(window.startTime);
+    const end = normalizeTime(window.endTime);
+    if (start >= end) {
+      throw new Error("startTime must be before endTime");
+    }
+  }
+}
+
 function normalizeTime(value: string) {
   const parts = value.trim().split(":");
   if (parts.length === 2) {
@@ -42,16 +55,7 @@ export async function replaceStaffSchedules(
     throw new Error("Staff not found");
   }
 
-  for (const window of windows) {
-    if (window.dayOfWeek < 0 || window.dayOfWeek > 6) {
-      throw new Error("Invalid dayOfWeek");
-    }
-    const start = normalizeTime(window.startTime);
-    const end = normalizeTime(window.endTime);
-    if (start >= end) {
-      throw new Error("startTime must be before endTime");
-    }
-  }
+  validateScheduleWindows(windows);
 
   return withDbTransaction(async (tx) => {
     await tx
